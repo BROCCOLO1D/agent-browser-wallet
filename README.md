@@ -19,7 +19,7 @@ Phase 1 defines the implementation contract before code is added:
 - expected future repo layout;
 - acceptance criteria, risks, and Phase 2 handoff checklist.
 
-See [Phase 1 runtime matrix](docs/phase-1-runtime-matrix.md) and [high-level goals](docs/high-level-goals.md).
+See [Phase 1 runtime matrix](docs/phase-1-runtime-matrix.md), [Phase 2 handoff checklist](docs/phase-2-handoff.md), and [high-level goals](docs/high-level-goals.md).
 
 ## Near-term MVP
 

@@ -99,10 +99,11 @@ The package names are placeholders for layout planning, not an API commitment. P
 - **Selector drift:** MetaMask UI changes are expected. Keep selectors isolated in the MetaMask helper package and fail loudly when onboarding or prompt screens no longer match.
 - **Safety:** All signing/transaction helpers must assert account, chain, dapp origin, target, and value before approving anything.
 
-## Phase 2 handoff checklist
+## Phase 2 handoff
+
+Use [Phase 2 handoff checklist](phase-2-handoff.md) for the first implementation slices. In short:
 
 - [ ] Add Node/package-manager pins and initial workspace files.
-- [ ] Add ignored artifact/profile directories to `.gitignore`.
 - [ ] Implement a script that fetches a pinned MetaMask release and verifies its checksum.
 - [ ] Implement `launchWalletBrowser()` around Playwright persistent Chromium contexts.
 - [ ] Build the fixture dapp with connect, account/chain display, signature, and simple transaction flows.
