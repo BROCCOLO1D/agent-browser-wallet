@@ -19,7 +19,7 @@ Phase 1 defines the implementation contract before code is added:
 - expected future repo layout;
 - acceptance criteria, risks, and Phase 2 handoff checklist.
 
-See [Phase 1 runtime matrix](docs/phase-1-runtime-matrix.md), [Phase 2 handoff checklist](docs/phase-2-handoff.md), and [high-level goals](docs/high-level-goals.md).
+See [Phase 1 runtime matrix](docs/phase-1-runtime-matrix.md), [security and artifact handling](docs/security-and-artifacts.md), [Phase 2 handoff checklist](docs/phase-2-handoff.md), and [high-level goals](docs/high-level-goals.md).
 
 ## Near-term MVP
 
@@ -33,6 +33,7 @@ See [Phase 1 runtime matrix](docs/phase-1-runtime-matrix.md), [Phase 2 handoff c
 
 - Use only burner/local/testnet wallets.
 - Keep wallet material in local `.env` files that are ignored by Git; start from [.env.example](.env.example).
+- Follow [security and artifact handling](docs/security-and-artifacts.md) for local profiles, traces, screenshots, reports, and CI uploads.
 - Never commit private keys, seed phrases, RPC tokens, wallet passwords, extension profile directories, traces, screenshots, or test artifacts containing secrets.
 - Fail closed on unexpected chain, account, value, contract, dapp origin, or wallet prompt state.
 - Treat the MetaMask profile as sensitive even when it only contains testnet funds.

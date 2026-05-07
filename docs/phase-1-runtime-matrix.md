@@ -54,6 +54,7 @@ Safety requirements:
 - `.env` and `.env.*` remain ignored; `.env.example` is the only committed env file.
 - Do not print private keys, seed phrases, wallet passwords, full env dumps, profile contents, traces, or screenshots that expose secrets.
 - Treat browser profile directories as sensitive artifacts because MetaMask can persist encrypted key material and session state.
+- Follow [security and artifact handling](security-and-artifacts.md) when implementing profile retention, logs, traces, and CI uploads.
 
 ## Expected future directory layout
 
