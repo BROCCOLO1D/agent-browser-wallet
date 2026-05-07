@@ -115,7 +115,8 @@ describe('wallet-control helpers', () => {
     expect(serialized).toContain('https://sepolia.infura.io/[redacted-url]');
   });
 
-  it('fails closed when connected dapp account or active wallet state is unexpected', async () => {
+  it('fails closed and logs sanitized connect failures when dapp account state is unexpected', async () => {
+    const events: WalletControlLogEvent[] = [];
     const dapp: WalletDappDriver = {
       async requestConnect() {},
       async getConnectedAccount() {
@@ -124,8 +125,32 @@ describe('wallet-control helpers', () => {
     };
     const prompt: WalletPromptDriver = { async approveConnection() {} };
 
-    await expect(connectWallet({ dapp, prompt, network: makeNetworkDriver(), expectedAccount: ADDRESS, expectedChainId: DEFAULT_SEPOLIA_CHAIN_ID })).rejects.toThrow(/connected account/i);
+    await expect(
+      connectWallet({
+        dapp,
+        prompt,
+        network: makeNetworkDriver(),
+        expectedAccount: ADDRESS,
+        expectedChainId: DEFAULT_SEPOLIA_CHAIN_ID,
+        origin: 'https://fixture.example/connect?session=sensitive-session',
+        logger: (event) => events.push(event),
+        metadata: { rpcUrl: RPC_WITH_CREDENTIAL }
+      })
+    ).rejects.toThrow(/connected account/i);
     await expect(assertWalletState({ network: makeNetworkDriver({ async getChainId() { return '0x1'; } }), expectedAccount: ADDRESS, expectedChainId: DEFAULT_SEPOLIA_CHAIN_ID })).rejects.toThrow(/not allowed|does not match/i);
+
+    expect(events.map((event) => event.status)).toEqual(['started', 'prompt-approved', 'failed']);
+    expect(events[2]).toMatchObject({
+      action: 'connectWallet',
+      status: 'failed',
+      origin: 'https://fixture.example/connect',
+      promptType: 'connect',
+      account: ADDRESS
+    });
+    const serialized = JSON.stringify(events);
+    expect(serialized).not.toContain('sensitive-session');
+    expect(serialized).not.toContain(RPC_SENSITIVE_SEGMENT);
+    expect(serialized).toContain('https://sepolia.infura.io/[redacted-url]');
   });
 
   it('switches network through the existing Sepolia provisioning driver', async () => {

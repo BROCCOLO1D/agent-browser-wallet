@@ -184,44 +184,58 @@ export async function connectWallet(options: ConnectWalletOptions): Promise<Conn
     metadata: options.metadata
   });
 
-  await options.dapp.requestConnect();
-  if (!options.prompt.approveConnection) {
-    throw new Error('MetaMask connection prompt approval is not implemented for the provided prompt driver; fail closed.');
+  try {
+    await options.dapp.requestConnect();
+    if (!options.prompt.approveConnection) {
+      throw new Error('MetaMask connection prompt approval is not implemented for the provided prompt driver; fail closed.');
+    }
+    await options.prompt.approveConnection({
+      origin: options.origin,
+      expectedAccount: config.expectedAccount,
+      expectedChainIdHex: config.chainIdHex
+    });
+    logWalletControl(options.logger, {
+      action: 'connectWallet',
+      status: 'prompt-approved',
+      origin: options.origin,
+      chainId: config.chainId,
+      chainIdHex: config.chainIdHex,
+      account: config.expectedAccount,
+      promptType: 'connect',
+      metadata: options.metadata
+    });
+
+    const connectedAccount = normalizeExpectedAccount(await options.dapp.getConnectedAccount());
+    if (connectedAccount !== config.expectedAccount) {
+      throw new Error(`Dapp connected account ${connectedAccount} does not match expected ${config.expectedAccount}.`);
+    }
+
+    const state = await assertExpectedChainAndAccount(config, options.network);
+    logWalletControl(options.logger, {
+      action: 'connectWallet',
+      status: 'verified',
+      origin: options.origin,
+      chainId: state.chainId,
+      chainIdHex: state.chainIdHex,
+      account: state.activeAccount,
+      promptType: 'connect',
+      metadata: options.metadata
+    });
+
+    return { ...state, status: 'connected' };
+  } catch (error) {
+    logWalletControl(options.logger, {
+      action: 'connectWallet',
+      status: 'failed',
+      origin: options.origin,
+      chainId: config.chainId,
+      chainIdHex: config.chainIdHex,
+      account: config.expectedAccount,
+      promptType: 'connect',
+      metadata: createFailureMetadata(options.metadata, error)
+    });
+    throw error;
   }
-  await options.prompt.approveConnection({
-    origin: options.origin,
-    expectedAccount: config.expectedAccount,
-    expectedChainIdHex: config.chainIdHex
-  });
-  logWalletControl(options.logger, {
-    action: 'connectWallet',
-    status: 'prompt-approved',
-    origin: options.origin,
-    chainId: config.chainId,
-    chainIdHex: config.chainIdHex,
-    account: config.expectedAccount,
-    promptType: 'connect',
-    metadata: options.metadata
-  });
-
-  const connectedAccount = normalizeExpectedAccount(await options.dapp.getConnectedAccount());
-  if (connectedAccount !== config.expectedAccount) {
-    throw new Error(`Dapp connected account ${connectedAccount} does not match expected ${config.expectedAccount}.`);
-  }
-
-  const state = await assertExpectedChainAndAccount(config, options.network);
-  logWalletControl(options.logger, {
-    action: 'connectWallet',
-    status: 'verified',
-    origin: options.origin,
-    chainId: state.chainId,
-    chainIdHex: state.chainIdHex,
-    account: state.activeAccount,
-    promptType: 'connect',
-    metadata: options.metadata
-  });
-
-  return { ...state, status: 'connected' };
 }
 
 export async function approveSignature(options: ApproveSignatureOptions): Promise<void> {
