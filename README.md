@@ -20,6 +20,8 @@ This is research-first. The repo starts with Markdown docs and should evolve tow
 
 - [Research brief](docs/research-brief.md)
 - [Pathway candidates](docs/pathways.md)
+- [Architecture notes](docs/architecture.md)
+- [Wallet-action policy model](docs/policy-model.md)
 - [Threat model](docs/threat-model.md)
 - [Experiment backlog](docs/experiments.md)
 

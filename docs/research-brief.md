@@ -26,6 +26,6 @@ Browser automation agents can already operate websites through Playwright or Pup
 - **Browser integration:** how Playwright/Puppeteer coordinates with wallet UI, dapp state, and signing outcomes.
 - **Auditability:** how requests, simulations, approvals, signatures, tx hashes, and failures are recorded.
 
-## Expected outputs
+## Current documentation direction
 
-GNHF should expand this repo with Markdown research documents that compare pathways, define risk levels, sketch minimal prototypes, and recommend a first implementation path.
+The repo should keep expanding through Markdown research before code prototypes. The immediate documentation target is a practical comparison of pathways, risk levels, prototype architectures, and safety controls that a later coding agent can implement without guessing.
