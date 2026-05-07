@@ -384,6 +384,34 @@ describe('wallet-control helpers', () => {
     expect(events[0]).toMatchObject({ target: ADDRESS, valueWei: '0' });
   });
 
+  it('fails closed on unsafe transaction chain before dapp or prompt approval', async () => {
+    const calls: string[] = [];
+    const events: WalletControlLogEvent[] = [];
+    const dapp: WalletDappDriver = {
+      async requestConnect() {},
+      async getConnectedAccount() { return ADDRESS; },
+      async requestTransaction() { calls.push('dapp:transaction'); }
+    };
+    const prompt: WalletPromptDriver = { async approveTransaction() { calls.push('prompt:transaction'); } };
+
+    await expect(approveTransaction({
+      dapp,
+      prompt,
+      network: makeNetworkDriver({ async getChainId() { return '0x1'; } }),
+      expectedChainId: DEFAULT_SEPOLIA_CHAIN_ID,
+      origin: 'https://fixture.example',
+      expectedAccount: ADDRESS,
+      to: ADDRESS,
+      value: '0x0',
+      logger: (event) => events.push(event)
+    })).rejects.toThrow(/not allowed|does not match/i);
+
+    expect(calls).toEqual([]);
+    expect(events.map((event) => event.decision)).toEqual(['pending', 'rejected']);
+    expect(events[0]).toMatchObject({ chainId: DEFAULT_SEPOLIA_CHAIN_ID, chainIdHex: '0xaa36a7', account: ADDRESS, target: ADDRESS, valueWei: '0' });
+    expect(events[1]).toMatchObject({ status: 'failed', promptType: 'transaction', chainId: DEFAULT_SEPOLIA_CHAIN_ID, chainIdHex: '0xaa36a7', account: ADDRESS, target: ADDRESS, valueWei: '0', decision: 'rejected' });
+  });
+
   it('fails closed on transaction value above the configured guardrail cap before dapp or prompt approval', async () => {
     const calls: string[] = [];
     const events: WalletControlLogEvent[] = [];

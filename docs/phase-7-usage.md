@@ -33,7 +33,9 @@ await connectWallet({
 await approveTransaction({
   dapp,
   prompt,
+  network,
   expectedAccount: process.env.SEPOLIA_WALLET_ADDRESS!,
+  expectedChainId: 11155111,
   origin: process.env.FIXTURE_DAPP_URL,
   to: '0x0000000000000000000000000000000000000000',
   value: '0x0',
@@ -42,7 +44,7 @@ await approveTransaction({
 });
 ```
 
-The default transaction value cap is zero wei. Set `maxTransactionValueWei` only for a fixture flow that deliberately needs a tiny non-zero Sepolia value.
+The default transaction value cap is zero wei. Set `maxTransactionValueWei` only for a fixture flow that deliberately needs a tiny non-zero Sepolia value. Passing both `network` and `expectedChainId` to signature or transaction approvals enables the same local/Sepolia-only chain and configured burner-account assertions used by connect and network helpers before any dapp or prompt side effects.
 
 ## What is audited
 

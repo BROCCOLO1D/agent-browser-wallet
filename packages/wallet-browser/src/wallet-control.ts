@@ -134,6 +134,8 @@ export interface ApproveSignatureOptions {
   dapp?: Pick<WalletDappDriver, 'requestSignature'>;
   origin?: string;
   expectedAccount: string;
+  expectedChainId?: string | number;
+  network?: MetaMaskNetworkDriver;
   message?: string;
   guardrails?: WalletGuardrailConfig;
   logger?: WalletControlLogger;
@@ -145,6 +147,8 @@ export interface ApproveTransactionOptions {
   dapp?: Pick<WalletDappDriver, 'requestTransaction'>;
   origin?: string;
   expectedAccount: string;
+  expectedChainId?: string | number;
+  network?: MetaMaskNetworkDriver;
   to?: string;
   value?: string;
   guardrails?: WalletGuardrailConfig;
@@ -257,10 +261,13 @@ export async function connectWallet(options: ConnectWalletOptions): Promise<Conn
 
 export async function approveSignature(options: ApproveSignatureOptions): Promise<void> {
   const expectedAccount = normalizeExpectedAccount(options.expectedAccount);
+  const stateConfig = createOptionalWalletStateConfig(options);
   logWalletControl(options.logger, {
     action: 'approveSignature',
     status: 'started',
     origin: options.origin,
+    chainId: stateConfig?.chainId,
+    chainIdHex: stateConfig?.chainIdHex,
     account: expectedAccount,
     decision: 'pending',
     promptType: 'signature',
@@ -268,6 +275,9 @@ export async function approveSignature(options: ApproveSignatureOptions): Promis
   });
   try {
     assertAllowedOrigin(options.origin, options.guardrails);
+    if (stateConfig && options.network) {
+      await assertExpectedChainAndAccount(stateConfig, options.network);
+    }
     if (!options.prompt.approveSignature) {
       throw new Error('MetaMask signature prompt approval is not implemented for the provided prompt driver; fail closed.');
     }
@@ -279,6 +289,8 @@ export async function approveSignature(options: ApproveSignatureOptions): Promis
       action: 'approveSignature',
       status: 'prompt-approved',
       origin: options.origin,
+      chainId: stateConfig?.chainId,
+      chainIdHex: stateConfig?.chainIdHex,
       account: expectedAccount,
       decision: 'approved',
       promptType: 'signature',
@@ -289,6 +301,8 @@ export async function approveSignature(options: ApproveSignatureOptions): Promis
       action: 'approveSignature',
       status: 'failed',
       origin: options.origin,
+      chainId: stateConfig?.chainId,
+      chainIdHex: stateConfig?.chainIdHex,
       account: expectedAccount,
       decision: 'rejected',
       promptType: 'signature',
@@ -300,6 +314,7 @@ export async function approveSignature(options: ApproveSignatureOptions): Promis
 
 export async function approveTransaction(options: ApproveTransactionOptions): Promise<void> {
   const expectedAccount = normalizeExpectedAccount(options.expectedAccount);
+  const stateConfig = createOptionalWalletStateConfig(options);
   const target = options.to ? normalizeExpectedAccount(options.to) : undefined;
   const valueWei = parseTransactionValueWei(options.value);
   const maxValueWei = parseTransactionValueWei(options.guardrails?.maxTransactionValueWei ?? 0n);
@@ -307,6 +322,8 @@ export async function approveTransaction(options: ApproveTransactionOptions): Pr
     action: 'approveTransaction',
     status: 'started',
     origin: options.origin,
+    chainId: stateConfig?.chainId,
+    chainIdHex: stateConfig?.chainIdHex,
     account: expectedAccount,
     target,
     valueWei: valueWei.toString(),
@@ -319,6 +336,9 @@ export async function approveTransaction(options: ApproveTransactionOptions): Pr
     assertAllowedTarget(target, options.guardrails);
     if (valueWei > maxValueWei) {
       throw new Error(`Transaction value ${valueWei.toString()} wei exceeds configured wallet transaction value cap ${maxValueWei.toString()} wei.`);
+    }
+    if (stateConfig && options.network) {
+      await assertExpectedChainAndAccount(stateConfig, options.network);
     }
     if (!options.prompt.approveTransaction) {
       throw new Error('MetaMask transaction prompt approval is not implemented for the provided prompt driver; fail closed.');
@@ -341,6 +361,8 @@ export async function approveTransaction(options: ApproveTransactionOptions): Pr
       action: 'approveTransaction',
       status: 'prompt-approved',
       origin: options.origin,
+      chainId: stateConfig?.chainId,
+      chainIdHex: stateConfig?.chainIdHex,
       account: expectedAccount,
       target,
       valueWei: valueWei.toString(),
@@ -353,6 +375,8 @@ export async function approveTransaction(options: ApproveTransactionOptions): Pr
       action: 'approveTransaction',
       status: 'failed',
       origin: options.origin,
+      chainId: stateConfig?.chainId,
+      chainIdHex: stateConfig?.chainIdHex,
       account: expectedAccount,
       target,
       valueWei: valueWei.toString(),
@@ -460,6 +484,20 @@ function createFailureMetadata(metadata: unknown, error: unknown): unknown {
     value: metadata,
     errorMessage: error instanceof Error ? error.message : String(error)
   };
+}
+
+function createOptionalWalletStateConfig(options: { expectedAccount: string; expectedChainId?: string | number; network?: MetaMaskNetworkDriver }): SepoliaNetworkConfig | undefined {
+  if (options.expectedChainId === undefined && options.network === undefined) {
+    return undefined;
+  }
+  if (options.expectedChainId === undefined || options.network === undefined) {
+    throw new Error('Wallet action chain guardrail requires both expectedChainId and network driver when either is configured.');
+  }
+  return createWalletStateConfig({
+    network: options.network,
+    expectedAccount: options.expectedAccount,
+    expectedChainId: options.expectedChainId
+  });
 }
 
 function createWalletStateConfig(options: WalletStateOptions): SepoliaNetworkConfig {
