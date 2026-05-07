@@ -15,6 +15,7 @@ type FixtureWindow = typeof window & {
     on(event: string, listener: (...args: unknown[]) => void): void;
   };
   __fixtureProviderRequests?: RequestArgs[];
+  __fixtureEmitProviderEvent?: (event: string, ...args: unknown[]) => void;
 };
 
 async function injectProvider(page: Page, chainId = CHAIN_ID): Promise<void> {
@@ -51,12 +52,55 @@ async function injectProvider(page: Page, chainId = CHAIN_ID): Promise<void> {
       }
     };
     fixtureWindow.__fixtureProviderRequests = requests;
+    fixtureWindow.__fixtureEmitProviderEvent = (event: string, ...args: unknown[]) => {
+      for (const listener of listeners.get(event) ?? []) {
+        listener(...args);
+      }
+    };
   }, { account: ACCOUNT, chainId, signature: SIGNATURE, txHash: TX_HASH });
 }
 
 async function getProviderRequests(page: Page): Promise<unknown> {
   return page.evaluate(() => (window as FixtureWindow).__fixtureProviderRequests);
 }
+
+async function emitProviderEvent(page: Page, event: string, ...args: unknown[]): Promise<void> {
+  await page.evaluate(({ event, args }) => {
+    const emit = (window as FixtureWindow).__fixtureEmitProviderEvent;
+    if (!emit) {
+      throw new Error('Mock provider event emitter was not installed');
+    }
+    emit(event, ...args);
+  }, { event, args });
+}
+
+test('fixture dapp reflects provider account and chain change events in stable selectors and status output', async ({ page }) => {
+  const selectors = getFixtureSelectors();
+  const nextAccount = '0x2222222222222222222222222222222222222222';
+
+  await injectProvider(page);
+
+  await page.goto('/');
+  await page.locator(selectors.connectButton).click();
+  await expect(page.locator(selectors.connectedAccount)).toHaveText(ACCOUNT);
+  await expect(page.locator(selectors.currentChain)).toHaveText('Sepolia (11155111 / 0xaa36a7)');
+
+  await emitProviderEvent(page, 'accountsChanged', [nextAccount.toUpperCase()]);
+  await expect(page.locator(selectors.connectedAccount)).toHaveText(nextAccount);
+  await expect(page.locator(selectors.signMessageButton)).toBeEnabled();
+  await expect(page.locator(selectors.sendTransactionButton)).toBeEnabled();
+  await expect(page.locator(selectors.statusOutput)).toHaveText('Wallet account changed.');
+
+  await emitProviderEvent(page, 'chainChanged', '0x7a69');
+  await expect(page.locator(selectors.currentChain)).toHaveText('Local devnet (31337 / 0x7a69)');
+  await expect(page.locator(selectors.statusOutput)).toHaveText('Wallet chain changed.');
+
+  await emitProviderEvent(page, 'accountsChanged', []);
+  await expect(page.locator(selectors.connectedAccount)).toHaveText('not connected');
+  await expect(page.locator(selectors.signMessageButton)).toBeDisabled();
+  await expect(page.locator(selectors.sendTransactionButton)).toBeDisabled();
+  await expect(page.locator(selectors.statusOutput)).toHaveText('Wallet account changed.');
+});
 
 test('fixture dapp completes connect, sign, and transaction requests with an injected provider', async ({ page }) => {
   const selectors = getFixtureSelectors();

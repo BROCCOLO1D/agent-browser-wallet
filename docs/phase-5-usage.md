@@ -28,9 +28,10 @@ The fixture supports the first deterministic dapp actions needed by wallet autom
 
 1. `eth_requestAccounts` to connect a wallet.
 2. `eth_accounts` and `eth_chainId` reads to display connected account and chain.
-3. `personal_sign` with a fixed UTF-8 message encoded as hex.
-4. Refuse transaction preparation unless the connected chain is Sepolia (`0xaa36a7`) or a common local devnet (`0x7a69`/`0x539`).
-5. `eth_sendTransaction` with a minimal zero-value transaction back to the connected account by default.
+3. `accountsChanged` and `chainChanged` listener updates so the stable display/status selectors reflect provider-side wallet changes.
+4. `personal_sign` with a fixed UTF-8 message encoded as hex.
+5. Refuse transaction preparation unless the connected chain is Sepolia (`0xaa36a7`) or a common local devnet (`0x7a69`/`0x539`).
+6. `eth_sendTransaction` with a minimal zero-value transaction back to the connected account by default.
 
 The zero-value self-transaction is meant to exercise wallet prompt handling without intentionally moving Sepolia funds. Wallet automation must still assert the expected account, chain, dapp origin, and transaction fields before approving prompts.
 
@@ -55,7 +56,7 @@ The selectors are also exported by `apps/fixture-dapp/src/fixture.ts` through `g
 
 `pnpm fixture:test` runs dependency-light Vitest coverage for stable selector exports, account/chain formatting, `personal_sign` params, and minimal transaction payload construction. These tests do not require MetaMask, a browser profile, a private key, an RPC URL, or Playwright traces.
 
-`pnpm fixture:test:mocked-provider` runs a Playwright Chromium smoke test against the built static fixture. It injects a mock `window.ethereum` provider before page load, clicks the stable selectors, and asserts the exact `eth_requestAccounts`, `eth_chainId`, `personal_sign`, and `eth_sendTransaction` request payloads without requiring real MetaMask. The Playwright config disables trace, screenshot, and video capture for this fixture smoke path.
+`pnpm fixture:test:mocked-provider` runs a Playwright Chromium smoke test against the built static fixture. It injects a mock `window.ethereum` provider before page load, clicks the stable selectors, emits provider account/chain change events, and asserts the exact `eth_requestAccounts`, `eth_chainId`, `personal_sign`, and `eth_sendTransaction` request payloads without requiring real MetaMask. The Playwright config disables trace, screenshot, and video capture for this fixture smoke path.
 
 Real MetaMask approval tests should only run after the fixture behavior is stable under this mocked-provider path.
 
@@ -66,5 +67,5 @@ Real MetaMask approval tests should only run after the fixture behavior is stabl
 - The app uses direct EIP-1193 `window.ethereum.request` calls and no wallet SDKs.
 - Public UI state uses stable `data-testid` selectors suitable for Playwright automation.
 - Unit tests cover deterministic request payload construction and display formatting without touching secrets.
-- The mocked-provider Playwright smoke test exercises the full browser UI path without MetaMask, including the fail-closed unsupported-chain transaction path, and with trace/screenshot/video capture disabled.
+- The mocked-provider Playwright smoke test exercises the full browser UI path without MetaMask, including provider account/chain change event updates and the fail-closed unsupported-chain transaction path, and with trace/screenshot/video capture disabled.
 - Screenshots, traces, browser profiles, wallet extensions, and reports remain ignored/sensitive according to [security and artifact handling](security-and-artifacts.md).

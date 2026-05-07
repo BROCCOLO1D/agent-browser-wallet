@@ -117,10 +117,12 @@ function bindProviderEvents(): void {
     setText(selectors.connectedAccount, formatAccount(connectedAccount));
     setEnabled(selectors.signMessageButton, Boolean(connectedAccount));
     setEnabled(selectors.sendTransactionButton, Boolean(connectedAccount));
+    setStatus('Wallet account changed.');
   });
   window.ethereum?.on?.('chainChanged', (...args: unknown[]) => {
     currentChainId = args[0] as string | undefined;
     setText(selectors.currentChain, formatChainId(currentChainId));
+    setStatus('Wallet chain changed.');
   });
 }
 
