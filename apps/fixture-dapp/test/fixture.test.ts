@@ -49,6 +49,12 @@ describe('fixture dapp helpers', () => {
     });
   });
 
+  it('refuses non-zero transaction values for fixture safety', () => {
+    expect(() => buildValueTransaction({ from: ACCOUNT, chainId: '0xaa36a7', value: '0x1' })).toThrow(
+      /fixture transactions must use zero value/i
+    );
+  });
+
   it('only prepares transactions on Sepolia or local devnet chains', () => {
     expect(buildValueTransaction({ from: ACCOUNT, chainId: '0x7a69' })).toEqual({
       from: ACCOUNT,

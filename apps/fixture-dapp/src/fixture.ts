@@ -106,6 +106,20 @@ export function assertSupportedTransactionChainId(chainId: string | number): voi
   }
 }
 
+export function normalizeZeroValue(value: string | undefined): string {
+  if (value === undefined) {
+    return '0x0';
+  }
+  const trimmed = value.trim().toLowerCase();
+  if (!/^0x[0-9a-f]+$/.test(trimmed)) {
+    throw new Error('fixture transaction value must be a 0x-prefixed hex string');
+  }
+  if (BigInt(trimmed) !== 0n) {
+    throw new Error('fixture transactions must use zero value');
+  }
+  return '0x0';
+}
+
 export function buildValueTransaction(input: ValueTransactionInput): MinimalValueTransaction {
   assertSupportedTransactionChainId(input.chainId);
   // This fixture intentionally sends a zero-value transaction back to the active account by default.
@@ -113,6 +127,6 @@ export function buildValueTransaction(input: ValueTransactionInput): MinimalValu
   return {
     from: input.from.toLowerCase(),
     to: (input.to ?? input.from).toLowerCase(),
-    value: input.value ?? '0x0'
+    value: normalizeZeroValue(input.value)
   };
 }
