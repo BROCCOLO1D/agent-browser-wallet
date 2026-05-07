@@ -15,6 +15,19 @@ Phase 1 turns the product direction into an implementation contract for the firs
 | Later dapp | `wildcat-app-v2` on Sepolia | Only after fixture dapp proves the helper surface. |
 | Runtime mode | Local Linux/WSL2 and Linux CI, headful or headed-under-Xvfb | Treat true extension headless as experimental until proven with pinned Chromium/Playwright. |
 
+## MVP implementation decisions
+
+These decisions are intentionally narrow so Phase 2 can start without re-litigating the runtime surface:
+
+- Use a TypeScript Node workspace with `pnpm` as the package manager.
+- Use Playwright Test as the only test runner for browser acceptance tests.
+- Use Playwright-managed Chromium unless extension loading proves a system Chrome/Chromium channel is required.
+- Launch Chromium through a persistent context with an explicit user data directory; do not use normal ephemeral Playwright contexts for wallet flows.
+- Default to throwaway per-run wallet profiles; named/preserved profiles are for local debugging only.
+- Load MetaMask as an unpacked extension from an ignored, checksum-verified artifact directory.
+- Drive a local fixture dapp first, then a simple Sepolia dapp, then `wildcat-app-v2` on Sepolia.
+- Treat Linux CI as headed-under-Xvfb until true headless extension support is proven by the fixture acceptance tests.
+
 ## Explicitly deferred
 
 - Firefox, WebKit, Chrome Stable, Brave, Edge, and remote browsers.
@@ -29,7 +42,7 @@ Phase 1 turns the product direction into an implementation contract for the firs
 Phase 2 should add exact pins in package/config files; until then these are the Phase 1 rules:
 
 - **Node.js:** standardize on the active LTS line and document the exact version in `.nvmrc` or `package.json#engines` when the package is introduced.
-- **Package manager:** use one package manager only, preferably `pnpm` with `packageManager` pinned in `package.json`; do not mix lockfiles.
+- **Package manager:** use `pnpm` only, with `packageManager` pinned in `package.json`; do not mix lockfiles.
 - **Playwright:** pin an exact package version in the lockfile. Browser revisions must come from that Playwright release unless a separate Chromium path is explicitly configured.
 - **Chromium:** use Playwright-managed Chromium for repeatability. If extension support forces a system browser, document the exact channel/path and CI image.
 - **MetaMask:** download or vendor-reference a specific extension release artifact by version and checksum. Store the unpacked extension under an ignored artifact directory, not Git.

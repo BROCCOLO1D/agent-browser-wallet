@@ -6,10 +6,10 @@ Phase 2 should turn the Phase 1 runtime contract into the first runnable wallet-
 
 ### 1. Workspace and version pins
 
-Outcome: the repo has one Node workspace and one lockfile.
+Outcome: the repo has one pnpm-based Node workspace and one lockfile.
 
 - Add `package.json` with `packageManager`, `engines.node`, and scripts for `build`, `test`, `lint` or explicit no-op replacements.
-- Add the chosen package-manager lockfile.
+- Add `pnpm-lock.yaml` as the only package-manager lockfile.
 - Add `.nvmrc` if the selected Node version is not obvious from `package.json`.
 - Install Playwright with an exact version and keep Chromium sourced from that Playwright release unless extension testing proves system Chrome is required.
 
