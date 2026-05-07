@@ -60,6 +60,72 @@ describe('runWalletBrowserCli', () => {
     expect(stdout.join('')).not.toContain('not-a-real-password');
   });
 
+  it('prints a redacted onboarding plan from injected env without requiring a MetaMask extension artifact', async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const privateKey = `0x${'b'.repeat(64)}`;
+    const password = 'local-only wallet password';
+
+    const exitCode = await runWalletBrowserCli({
+      argv: ['onboarding-plan'],
+      cwd: await tempRoot(),
+      env: {
+        SEPOLIA_WALLET_ADDRESS: '0x3333333333333333333333333333333333333333',
+        SEPOLIA_WALLET_PRIVATE_KEY: privateKey,
+        METAMASK_PASSWORD: password,
+        METAMASK_ONBOARDING_TIMEOUT_MS: '75000',
+        METAMASK_ONBOARDING_DEBUG: 'true'
+      },
+      stdout: (message) => stdout.push(message),
+      stderr: (message) => stderr.push(message)
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stderr).toEqual([]);
+    const output = stdout.join('');
+    const plan = JSON.parse(output) as {
+      status: string;
+      expectedAddress: string;
+      privateKey: string;
+      password: string;
+      timeoutMs: number;
+      debug: boolean;
+      selectors: Record<string, string>;
+    };
+    expect(plan.status).toBe('pending');
+    expect(plan.expectedAddress).toBe('0x3333333333333333333333333333333333333333');
+    expect(plan.privateKey).toBe('0xbb…bbbb');
+    expect(plan.password).toBe('[redacted:26 chars]');
+    expect(plan.timeoutMs).toBe(75000);
+    expect(plan.debug).toBe(true);
+    expect(plan.selectors.privateKeyInput).toContain('private-key');
+    expect(output).not.toContain(privateKey);
+    expect(output).not.toContain(password);
+  });
+
+  it('returns a non-zero exit code and concise error when onboarding plan validation fails without echoing secrets', async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const badPrivateKey = 'not-a-valid-private-key-value';
+
+    const exitCode = await runWalletBrowserCli({
+      argv: ['onboarding-plan'],
+      cwd: await tempRoot(),
+      env: {
+        SEPOLIA_WALLET_ADDRESS: '0x3333333333333333333333333333333333333333',
+        SEPOLIA_WALLET_PRIVATE_KEY: badPrivateKey,
+        METAMASK_PASSWORD: 'local-only wallet password'
+      },
+      stdout: (message) => stdout.push(message),
+      stderr: (message) => stderr.push(message)
+    });
+
+    expect(exitCode).toBe(1);
+    expect(stdout).toEqual([]);
+    expect(stderr.join('')).toContain('SEPOLIA_WALLET_PRIVATE_KEY');
+    expect(stderr.join('')).not.toContain(badPrivateKey);
+  });
+
   it('returns a non-zero exit code and concise error when config resolution fails', async () => {
     const cwd = await tempRoot();
     const stdout: string[] = [];

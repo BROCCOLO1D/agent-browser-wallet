@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { prepareChromiumLaunchOptions } from './launcher.js';
 import { resolveWalletBrowserConfig, type WalletBrowserEnv } from './config.js';
+import { createMetaMaskOnboardingPlan, resolveMetaMaskOnboardingConfig } from './onboarding.js';
 
 export interface WalletBrowserCliOptions {
   argv?: string[];
@@ -23,9 +24,12 @@ interface WalletBrowserLaunchPlanJson {
 
 const USAGE = `Usage:
   wallet-browser prepare
+  wallet-browser onboarding-plan
 
-Print a sanitized Chromium persistent-context launch plan for the pinned MetaMask extension profile.
-This Phase 2 CLI does not launch Chromium, import wallets, read private keys, or read .env files.
+Print a sanitized Chromium persistent-context launch plan for the pinned MetaMask extension profile,
+or print a redacted MetaMask onboarding plan for the configured burner wallet.
+The prepare command does not launch Chromium. The onboarding-plan command validates onboarding inputs
+from injected environment/config and never prints raw private keys or wallet passwords.
 `;
 
 export async function runWalletBrowserCli(options: WalletBrowserCliOptions = {}): Promise<number> {
@@ -37,6 +41,18 @@ export async function runWalletBrowserCli(options: WalletBrowserCliOptions = {})
   if (command === '--help' || command === '-h' || command === 'help') {
     stdout(USAGE);
     return 0;
+  }
+
+  if (command === 'onboarding-plan') {
+    try {
+      const onboardingConfig = resolveMetaMaskOnboardingConfig({ env: options.env });
+      const plan = createMetaMaskOnboardingPlan(onboardingConfig);
+      stdout(`${JSON.stringify(plan, null, 2)}\n`);
+      return 0;
+    } catch (error) {
+      stderr(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
   }
 
   if (command !== 'prepare') {

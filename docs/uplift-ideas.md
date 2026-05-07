@@ -10,3 +10,6 @@ Append-only notes for potentially useful improvements discovered during autonomo
 - Document a future `METAMASK_EXTENSION_VERSION` + checksum field alongside `METAMASK_EXTENSION_PATH` so local paths remain auditable once the fetcher exists.
 - Consider adding a committed `metamask-artifact.json` manifest with version, expected zip filename, download URL, and checksum so the future fetcher and runtime resolver share one pin source.
 - Add a future CLI `--format` option if humans need text output, but keep JSON as the default for agent consumption.
+- Add a selector-drift smoke test that opens the pinned MetaMask onboarding page and checks `METAMASK_ONBOARDING_SELECTORS` before any private key is entered.
+- Consider deriving the MetaMask extension ID from the persistent context service worker/background target so onboarding helpers do not require callers to pass it manually.
+- Add a future wait/assert helper after unlock that polls for an unlocked account UI marker before returning, so callers do not race the MetaMask transition after password submit.

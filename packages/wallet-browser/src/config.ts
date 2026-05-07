@@ -11,6 +11,11 @@ export interface WalletBrowserEnv {
   WALLET_PROFILE_DIR?: string;
   WALLET_PROFILE_NAME?: string;
   PRESERVE_WALLET_PROFILE?: string;
+  SEPOLIA_WALLET_ADDRESS?: string;
+  SEPOLIA_WALLET_PRIVATE_KEY?: string;
+  METAMASK_PASSWORD?: string;
+  METAMASK_ONBOARDING_TIMEOUT_MS?: string;
+  METAMASK_ONBOARDING_DEBUG?: string;
 }
 
 export interface ResolveWalletBrowserConfigOptions {
