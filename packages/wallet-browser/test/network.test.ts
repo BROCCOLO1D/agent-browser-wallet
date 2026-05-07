@@ -4,6 +4,7 @@ import {
   DEFAULT_NETWORK_ASSERTION_TIMEOUT_MS,
   DEFAULT_SEPOLIA_CHAIN_ID,
   assertExpectedChainAndAccount,
+  chainIdToHex,
   createMetaMaskNetworkPageDriver,
   createSepoliaNetworkPlan,
   isAllowedWalletChainId,
@@ -44,6 +45,13 @@ describe('Sepolia network config and normalization', () => {
     expect(() => normalizeChainId(Number.MAX_SAFE_INTEGER + 1)).toThrow(/safe integer/i);
     expect(() => normalizeChainId('9007199254740992')).toThrow(/safe integer/i);
     expect(() => normalizeChainId('0x20000000000000')).toThrow(/safe integer/i);
+  });
+
+  it('formats only positive safe-integer chain ids as 0x-prefixed lowercase hex', () => {
+    expect(chainIdToHex(DEFAULT_SEPOLIA_CHAIN_ID)).toBe('0xaa36a7');
+    expect(() => chainIdToHex(0)).toThrow(/positive integer/i);
+    expect(() => chainIdToHex(-1)).toThrow(/positive integer/i);
+    expect(() => chainIdToHex(Number.MAX_SAFE_INTEGER + 1)).toThrow(/safe integer/i);
   });
 
   it('normalizes expected accounts and validates allowed Sepolia/local chain ids', () => {

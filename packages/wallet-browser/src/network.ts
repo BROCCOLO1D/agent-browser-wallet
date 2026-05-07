@@ -101,7 +101,7 @@ export function normalizeChainId(value: string | number | undefined): number {
 }
 
 export function chainIdToHex(chainId: number): string {
-  return `0x${chainId.toString(16)}`;
+  return `0x${validatePositiveSafeChainId(chainId).toString(16)}`;
 }
 
 function validateSafeChainId(chainId: number): number {
@@ -109,6 +109,13 @@ function validateSafeChainId(chainId: number): number {
     throw new Error('Chain id must be within JavaScript safe integer range.');
   }
   return chainId;
+}
+
+function validatePositiveSafeChainId(chainId: number): number {
+  if (!Number.isInteger(chainId) || chainId <= 0) {
+    throw new Error('Chain id must be a positive integer.');
+  }
+  return validateSafeChainId(chainId);
 }
 
 export function normalizeExpectedAccount(value: string | undefined): string {
