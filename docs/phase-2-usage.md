@@ -84,6 +84,14 @@ The command prints JSON with Chromium launch metadata such as `userDataDir`, ext
 
 ## Local MetaMask smoke screenshots
 
+Prepare the pinned real artifact locally with:
+
+```bash
+pnpm wallet:metamask:fetch
+```
+
+This downloads the official `metamask-chrome-13.29.0.zip` release asset from GitHub, unpacks it to the ignored default path `.wallet-extensions/metamask/13.29.0/chrome`, validates that the extracted manifest identifies MetaMask and reports the pinned version, and prints JSON metadata. Use `pnpm wallet:metamask:fetch --dry-run` to inspect the URL and local paths without downloading. Do not commit `.wallet-extensions/` or the downloaded zip.
+
 Once an unpacked MetaMask artifact exists at the pinned default path or `METAMASK_EXTENSION_PATH` / `METAMASK_EXTENSION_DIR`, generate local-only Chromium screenshots with:
 
 ```bash
