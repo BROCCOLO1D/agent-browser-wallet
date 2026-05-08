@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -16,6 +17,136 @@ function createExtension(path: string): void {
 }
 
 describe('runWalletBrowserCli', () => {
+  it('runs an injected MetaMask smoke screenshot capture and prints sanitized artifact metadata', async () => {
+    const cwd = await tempRoot();
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const calls: Array<{ cwd?: string; envKeys: string[] }> = [];
+
+    const exitCode = await runWalletBrowserCli({
+      argv: ['smoke-metamask'],
+      cwd,
+      env: {
+        METAMASK_EXTENSION_PATH: join(cwd, 'metamask'),
+        METAMASK_PASSWORD: 'do-not-print-this-password'
+      },
+      runMetaMaskSmoke: async (options) => {
+        calls.push({ cwd: options.cwd, envKeys: Object.keys(options.env ?? {}).sort() });
+        return {
+          status: 'captured',
+          artifactDir: join(cwd, '.wallet-artifacts', 'metamask-smoke', 'run'),
+          screenshots: [
+            { label: 'browser-page', path: join(cwd, '.wallet-artifacts', 'metamask-smoke', 'run', 'browser-page.png') },
+            { label: 'metamask-extension', path: join(cwd, '.wallet-artifacts', 'metamask-smoke', 'run', 'metamask-extension.png') }
+          ],
+          inspectionGuidePath: join(cwd, '.wallet-artifacts', 'metamask-smoke', 'run', 'INSPECTION.md'),
+          manifestPath: join(cwd, '.wallet-artifacts', 'metamask-smoke', 'run', 'SMOKE-MANIFEST.json'),
+          notes: ['No wallet was imported, unlocked, connected, used to sign, or used to transact.']
+        };
+      },
+      stdout: (message) => stdout.push(message),
+      stderr: (message) => stderr.push(message)
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stderr).toEqual([]);
+    expect(calls).toEqual([{ cwd, envKeys: ['METAMASK_EXTENSION_PATH', 'METAMASK_PASSWORD'] }]);
+    const output = stdout.join('');
+    const result = JSON.parse(output) as { status: string; artifactDir: string; screenshots: Array<{ label: string; path: string }>; notes: string[] };
+    expect(result.status).toBe('captured');
+    expect(result.artifactDir).toContain('.wallet-artifacts/metamask-smoke');
+    expect(result.screenshots.map((screenshot) => screenshot.label)).toEqual(['browser-page', 'metamask-extension']);
+    expect(result.notes.join(' ')).toContain('No wallet was imported');
+    expect(output).not.toContain('do-not-print-this-password');
+  });
+
+  it('runs an injected fixture extension smoke capture and labels it as extension-loading mechanics only', async () => {
+    const cwd = await tempRoot();
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const calls: Array<{ cwd?: string; envKeys: string[] }> = [];
+
+    const exitCode = await runWalletBrowserCli({
+      argv: ['smoke-fixture-extension'],
+      cwd,
+      env: { METAMASK_PASSWORD: 'do-not-print-this-password' },
+      runFixtureExtensionSmoke: async (options) => {
+        calls.push({ cwd: options.cwd, envKeys: Object.keys(options.env ?? {}).sort() });
+        return {
+          status: 'captured',
+          artifactDir: join(cwd, '.wallet-artifacts', 'fixture-extension-smoke', 'run'),
+          screenshots: [
+            { label: 'browser-page', path: join(cwd, '.wallet-artifacts', 'fixture-extension-smoke', 'run', 'browser-page.png') },
+            { label: 'fixture-extension', path: join(cwd, '.wallet-artifacts', 'fixture-extension-smoke', 'run', 'fixture-extension.png') }
+          ],
+          inspectionGuidePath: join(cwd, '.wallet-artifacts', 'fixture-extension-smoke', 'run', 'INSPECTION.md'),
+          manifestPath: join(cwd, '.wallet-artifacts', 'fixture-extension-smoke', 'run', 'SMOKE-MANIFEST.json'),
+          notes: ['Fixture extension smoke proves Chromium extension-loading mechanics only; it is not MetaMask UI.']
+        };
+      },
+      stdout: (message) => stdout.push(message),
+      stderr: (message) => stderr.push(message)
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stderr).toEqual([]);
+    expect(calls).toEqual([{ cwd, envKeys: ['METAMASK_PASSWORD'] }]);
+    const output = stdout.join('');
+    const result = JSON.parse(output) as { artifactDir: string; screenshots: Array<{ label: string }>; notes: string[] };
+    expect(result.artifactDir).toContain('.wallet-artifacts/fixture-extension-smoke');
+    expect(result.screenshots.map((screenshot) => screenshot.label)).toEqual(['browser-page', 'fixture-extension']);
+    expect(result.notes.join(' ')).toContain('not MetaMask UI');
+    expect(output).not.toContain('do-not-print-this-password');
+  });
+
+  it('verifies a smoke artifact manifest without launching Chromium', async () => {
+    const cwd = await tempRoot();
+    const artifactDir = join(cwd, '.wallet-artifacts', 'metamask-smoke', 'run');
+    mkdirSync(artifactDir, { recursive: true });
+    writeFileSync(join(artifactDir, 'browser-page.png'), 'browser image bytes');
+    writeFileSync(join(artifactDir, 'INSPECTION.md'), '# Review checklist\n');
+    writeFileSync(
+      join(artifactDir, 'SMOKE-MANIFEST.json'),
+      `${JSON.stringify(
+        {
+          artifactType: 'wallet-browser-smoke-screenshots',
+          inspectionGuide: 'INSPECTION.md',
+          screenshots: [
+            {
+              label: 'browser-page',
+              file: 'browser-page.png',
+              sizeBytes: 'browser image bytes'.length,
+              sha256: createHash('sha256').update('browser image bytes').digest('hex')
+            }
+          ],
+          notes: ['No wallet was imported, unlocked, connected, used to sign, or used to transact.']
+        },
+        null,
+        2
+      )}\n`
+    );
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    const exitCode = await runWalletBrowserCli({
+      argv: ['verify-smoke-artifacts', artifactDir],
+      cwd,
+      env: { METAMASK_PASSWORD: 'do-not-print-this-password' },
+      stdout: (message) => stdout.push(message),
+      stderr: (message) => stderr.push(message)
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stderr).toEqual([]);
+    const output = stdout.join('');
+    const result = JSON.parse(output) as { status: string; screenshots: Array<{ file: string; sha256: string }>; notes: string[] };
+    expect(result.status).toBe('verified');
+    expect(result.screenshots).toHaveLength(1);
+    expect(result.screenshots[0].file).toBe('browser-page.png');
+    expect(result.notes.join(' ')).toContain('No wallet was imported');
+    expect(output).not.toContain('do-not-print-this-password');
+  });
+
   it('prints a sanitized launch plan without launching Chromium or exposing wallet secrets', async () => {
     const cwd = await tempRoot();
     const extensionPath = join(cwd, 'metamask');
@@ -44,8 +175,10 @@ describe('runWalletBrowserCli', () => {
       args: string[];
       metamaskExtensionPath: string;
       metamaskExtensionVersion: string;
+      metamaskExtensionIdentity: { name: string; shortName?: string; version?: string };
       profileName: string;
       preserveProfile: boolean;
+      config: { present: string[]; missing: string[] };
     };
     expect(plan.browserName).toBe('chromium');
     expect(plan.metamaskExtensionPath).toBe(extensionPath);
@@ -56,6 +189,9 @@ describe('runWalletBrowserCli', () => {
     ]);
     expect(plan.profileName).toBe('agent-run');
     expect(plan.preserveProfile).toBe(false);
+    expect(plan.metamaskExtensionIdentity).toEqual({ name: 'MetaMask' });
+    expect(plan.config.present).toEqual(['METAMASK_EXTENSION_PATH', 'WALLET_PROFILE_NAME']);
+    expect(plan.config.missing).toEqual(['METAMASK_EXTENSION_DIR', 'METAMASK_EXTENSION_VERSION', 'WALLET_PROFILE_DIR', 'PRESERVE_WALLET_PROFILE']);
     expect(stdout.join('')).not.toContain('0xnot-a-real-secret');
     expect(stdout.join('')).not.toContain('not-a-real-password');
   });
@@ -208,6 +344,28 @@ describe('runWalletBrowserCli', () => {
     expect(exitCode).toBe(1);
     expect(stdout).toEqual([]);
     expect(stderr.join('')).toContain('MetaMask extension path does not exist');
+  });
+
+  it('redacts injected prepare env path values from validation errors', async () => {
+    const cwd = await tempRoot();
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const sensitivePath = join(cwd, 'metamask-super-secret-token-path');
+
+    const exitCode = await runWalletBrowserCli({
+      argv: ['prepare'],
+      cwd,
+      env: { METAMASK_EXTENSION_PATH: sensitivePath },
+      stdout: (message) => stdout.push(message),
+      stderr: (message) => stderr.push(message)
+    });
+
+    expect(exitCode).toBe(1);
+    expect(stdout).toEqual([]);
+    expect(stderr.join('')).toContain('MetaMask extension path does not exist');
+    expect(stderr.join('')).toContain('[redacted:METAMASK_EXTENSION_PATH]');
+    expect(stderr.join('')).not.toContain(sensitivePath);
+    expect(stderr.join('')).not.toContain('super-secret-token-path');
   });
 
   it('prints usage without touching wallet config for help', async () => {

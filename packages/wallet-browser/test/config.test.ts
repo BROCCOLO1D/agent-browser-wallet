@@ -19,12 +19,21 @@ describe('resolveWalletBrowserConfig', () => {
     const cwd = tempRoot();
     const extensionPath = join(cwd, '.wallet-extensions', 'metamask', PINNED_METAMASK_VERSION, 'chrome');
     mkdirSync(extensionPath, { recursive: true });
-    writeFileSync(join(extensionPath, 'manifest.json'), JSON.stringify({ manifest_version: 3, name: 'MetaMask' }));
+    writeFileSync(join(extensionPath, 'manifest.json'), JSON.stringify({ manifest_version: 3, name: 'MetaMask', version: PINNED_METAMASK_VERSION }));
 
     const config = resolveWalletBrowserConfig({ cwd, env: {} });
 
     expect(config.metamaskExtensionPath).toBe(extensionPath);
     expect(config.metamaskExtensionVersion).toBe(PINNED_METAMASK_VERSION);
+  });
+
+  it('rejects the default pinned MetaMask artifact when manifest version does not match the configured version', () => {
+    const cwd = tempRoot();
+    const extensionPath = join(cwd, '.wallet-extensions', 'metamask', PINNED_METAMASK_VERSION, 'chrome');
+    mkdirSync(extensionPath, { recursive: true });
+    writeFileSync(join(extensionPath, 'manifest.json'), JSON.stringify({ manifest_version: 3, name: 'MetaMask', version: '13.28.0' }));
+
+    expect(() => resolveWalletBrowserConfig({ cwd, env: {} })).toThrow(/MetaMask extension manifest version must match configured version/);
   });
 
   it('fails clearly when the default pinned MetaMask artifact path is missing', () => {
@@ -37,12 +46,13 @@ describe('resolveWalletBrowserConfig', () => {
     const cwd = tempRoot();
     const extensionPath = join(cwd, '.wallet-extensions', 'metamask', '13.0.0');
     mkdirSync(extensionPath, { recursive: true });
-    writeFileSync(join(extensionPath, 'manifest.json'), JSON.stringify({ manifest_version: 3, name: 'MetaMask' }));
+    writeFileSync(join(extensionPath, 'manifest.json'), JSON.stringify({ manifest_version: 3, name: 'MetaMask', version: '13.29.0' }));
 
     const config = resolveWalletBrowserConfig({ cwd, env: { METAMASK_EXTENSION_PATH: extensionPath } });
 
     expect(config.browserName).toBe('chromium');
     expect(config.metamaskExtensionPath).toBe(extensionPath);
+    expect(config.metamaskExtensionIdentity).toEqual({ name: 'MetaMask', shortName: undefined, version: '13.29.0' });
     expect(config.profileDir).toBe(join(cwd, '.wallet-profiles', 'sepolia-burner'));
     expect(config.preserveProfile).toBe(false);
   });
@@ -102,6 +112,28 @@ describe('resolveWalletBrowserConfig', () => {
     expect(Object.keys(config)).not.toContain('walletPassword');
   });
 
+  it('rejects unsafe profile directories that point at the project root', () => {
+    const cwd = tempRoot();
+    const extensionPath = join(cwd, 'extension');
+    mkdirSync(extensionPath, { recursive: true });
+    writeFileSync(join(extensionPath, 'manifest.json'), JSON.stringify({ manifest_version: 3, name: 'MetaMask' }));
+
+    expect(() => resolveWalletBrowserConfig({ cwd, env: { METAMASK_EXTENSION_PATH: extensionPath, WALLET_PROFILE_DIR: cwd } })).toThrow(
+      /Wallet browser profile directory is unsafe/
+    );
+  });
+
+  it('rejects unsafe profile directories that overlap the MetaMask extension artifact', () => {
+    const cwd = tempRoot();
+    const extensionPath = join(cwd, 'extension');
+    mkdirSync(extensionPath, { recursive: true });
+    writeFileSync(join(extensionPath, 'manifest.json'), JSON.stringify({ manifest_version: 3, name: 'MetaMask' }));
+
+    expect(() =>
+      resolveWalletBrowserConfig({ cwd, env: { METAMASK_EXTENSION_PATH: extensionPath, WALLET_PROFILE_DIR: join(extensionPath, 'profile') } })
+    ).toThrow(/Wallet browser profile directory must not overlap the MetaMask extension path/);
+  });
+
   it('rejects extension directories without a manifest before preparing Chromium launch options', () => {
     const cwd = tempRoot();
     const extensionPath = join(cwd, 'extension-without-manifest');
@@ -112,11 +144,58 @@ describe('resolveWalletBrowserConfig', () => {
     );
   });
 
+  it('resolves localized Chrome extension names used by real MetaMask bundles', () => {
+    const cwd = tempRoot();
+    const extensionPath = join(cwd, 'localized-metamask');
+    mkdirSync(join(extensionPath, '_locales', 'en'), { recursive: true });
+    writeFileSync(
+      join(extensionPath, 'manifest.json'),
+      JSON.stringify({ manifest_version: 3, name: '__MSG_appName__', short_name: '__MSG_appName__', default_locale: 'en', version: '13.29.0' })
+    );
+    writeFileSync(
+      join(extensionPath, '_locales', 'en', 'messages.json'),
+      JSON.stringify({ appName: { message: 'MetaMask' } })
+    );
+
+    const config = resolveWalletBrowserConfig({ cwd, env: { METAMASK_EXTENSION_PATH: extensionPath } });
+
+    expect(config.metamaskExtensionIdentity).toEqual({ name: 'MetaMask', shortName: 'MetaMask', version: '13.29.0' });
+  });
+
   it('rejects unpacked extension directories whose manifest does not identify MetaMask', () => {
     const cwd = tempRoot();
     const extensionPath = join(cwd, 'not-metamask');
     mkdirSync(extensionPath, { recursive: true });
     writeFileSync(join(extensionPath, 'manifest.json'), JSON.stringify({ manifest_version: 3, name: 'Some Other Wallet' }));
+
+    expect(() => resolveWalletBrowserConfig({ cwd, env: { METAMASK_EXTENSION_PATH: extensionPath } })).toThrow(
+      /MetaMask extension manifest must identify MetaMask/
+    );
+  });
+
+  it('rejects counterfeit extension manifests that only contain MetaMask as a substring', () => {
+    const cwd = tempRoot();
+    const extensionPath = join(cwd, 'counterfeit-metamask');
+    mkdirSync(extensionPath, { recursive: true });
+    writeFileSync(join(extensionPath, 'manifest.json'), JSON.stringify({ manifest_version: 3, name: 'Not MetaMask' }));
+
+    expect(() => resolveWalletBrowserConfig({ cwd, env: { METAMASK_EXTENSION_PATH: extensionPath } })).toThrow(
+      /MetaMask extension manifest must identify MetaMask/
+    );
+  });
+
+  it('rejects localized extension manifests when locale messages do not identify MetaMask', () => {
+    const cwd = tempRoot();
+    const extensionPath = join(cwd, 'localized-other-wallet');
+    mkdirSync(join(extensionPath, '_locales', 'en'), { recursive: true });
+    writeFileSync(
+      join(extensionPath, 'manifest.json'),
+      JSON.stringify({ manifest_version: 3, name: '__MSG_appName__', default_locale: 'en' })
+    );
+    writeFileSync(
+      join(extensionPath, '_locales', 'en', 'messages.json'),
+      JSON.stringify({ appName: { message: 'Some Other Wallet' } })
+    );
 
     expect(() => resolveWalletBrowserConfig({ cwd, env: { METAMASK_EXTENSION_PATH: extensionPath } })).toThrow(
       /MetaMask extension manifest must identify MetaMask/
@@ -152,6 +231,7 @@ describe('prepareChromiumLaunchOptions', () => {
       browserName: 'chromium',
       metamaskExtensionPath: '/tmp/metamask-extension',
       metamaskExtensionVersion: '13.29.0',
+      metamaskExtensionIdentity: { name: 'MetaMask', version: '13.29.0' },
       profileDir: '/tmp/wallet-profile',
       profileName: 'sepolia-burner',
       preserveProfile: false

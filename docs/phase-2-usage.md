@@ -80,12 +80,53 @@ After `pnpm build`, developers and agents can ask the package to validate config
 pnpm --filter @agent-browser-wallet/wallet-browser cli prepare
 ```
 
-The command prints JSON with Chromium launch metadata such as `userDataDir`, extension `args`, `profileName`, `preserveProfile`, and the resolved MetaMask extension path/version. It does not read `.env`, private keys, seed phrases, wallet passwords, or RPC tokens.
+The command prints JSON with Chromium launch metadata such as `userDataDir`, extension `args`, `profileName`, `preserveProfile`, the resolved MetaMask extension path/configured version, the extension identity/version read from `manifest.json` when present, and a `config.present`/`config.missing` summary of the non-secret prepare-only variables it considered. It does not read `.env`, private keys, seed phrases, wallet passwords, or RPC tokens. If validation fails, env-injected local path values such as `METAMASK_EXTENSION_PATH`, `METAMASK_EXTENSION_DIR`, and `WALLET_PROFILE_DIR` are redacted from CLI error output.
+
+## Local MetaMask smoke screenshots
+
+Prepare the pinned real artifact locally with:
+
+```bash
+pnpm wallet:metamask:fetch
+```
+
+This downloads the official `metamask-chrome-13.29.0.zip` release asset from GitHub, unpacks it to the ignored default path `.wallet-extensions/metamask/13.29.0/chrome`, validates that the extracted manifest identifies MetaMask and reports the pinned version, and prints JSON metadata. Use `pnpm wallet:metamask:fetch --dry-run` to inspect the URL and local paths without downloading. Do not commit `.wallet-extensions/` or the downloaded zip.
+
+Once an unpacked MetaMask artifact exists at the pinned default path or `METAMASK_EXTENSION_PATH` / `METAMASK_EXTENSION_DIR`, generate local-only Chromium screenshots with:
+
+```bash
+pnpm wallet:smoke:metamask
+```
+
+This script builds `@agent-browser-wallet/fixture-dapp` and `@agent-browser-wallet/wallet-browser`, launches real Playwright Chromium with a persistent user data directory and the unpacked MetaMask extension loaded, opens the fixture dapp as the normal browser page without connecting it to a wallet, opens or discovers the MetaMask extension UI (`chrome-extension://<id>/home.html` / notification pages), captures screenshots, writes an `INSPECTION.md` visual-review checklist plus `SMOKE-MANIFEST.json` screenshot provenance manifest next to the screenshots, prints JSON metadata, and closes the browser context. The manifest records only screenshot basenames, byte sizes, SHA-256 hashes, notes, and the checklist basename so the local evidence can be checked without exposing full local paths. Screenshots are written under ignored `.wallet-artifacts/metamask-smoke/<timestamp>/` because browser screenshots/traces are treated as sensitive until manually inspected.
+
+If a real MetaMask artifact is not available, use the generated fixture-extension smoke only to verify the Chromium extension-loading mechanics:
+
+```bash
+pnpm wallet:smoke:fixture-extension
+```
+
+The fixture command creates an ignored unpacked extension under `.wallet-artifacts/fixture-extension-smoke/<timestamp>/fixture-extension/`, launches it through the same Chromium persistent-context foundation, and captures `browser-page.png` plus `fixture-extension.png` with adjacent `INSPECTION.md` and `SMOKE-MANIFEST.json` files. The fixture page is intentionally labeled **not MetaMask UI**; do not use it as evidence of MetaMask onboarding, wallet connection, signing, or transaction support. Like the real MetaMask smoke path, this launches a headed Chromium instance so Linux/CI environments without a display should run it under `xvfb-run` rather than expecting headless extension UI screenshots.
+
+After any smoke run, verify the local manifest still matches the screenshot files before sharing or promoting artifacts:
+
+```bash
+pnpm wallet:smoke:verify .wallet-artifacts/metamask-smoke/<timestamp>
+```
+
+The verifier reads `SMOKE-MANIFEST.json`, requires only safe basenames for screenshot and checklist entries, checks that `INSPECTION.md` exists, recomputes screenshot byte sizes and SHA-256 hashes, and fails on mismatch. It is an integrity/provenance check only; it does not replace manual visual inspection of the images for secrets or sensitive browser state.
+
+Safety boundaries for this milestone:
+
+- It does **not** import a wallet, unlock MetaMask, connect to the fixture dapp, approve prompts, sign, or transact.
+- Do not move screenshots into `docs/assets/readme/` until visually inspected and confirmed to contain no seed phrases, private keys, passwords, RPC tokens, full addresses, or sensitive local paths.
+- If the MetaMask artifact is absent, the command fails during config validation rather than producing a fake MetaMask screenshot.
+- Wallet onboarding plus fixture-dapp connect screenshots are the next milestone.
 
 ## Acceptance for this foundation
 
 - Node, pnpm, Playwright, TypeScript, and Vitest versions are pinned in committed package files and lockfile.
-- `@agent-browser-wallet/wallet-browser` resolves a MetaMask extension directory from env/config or the pinned default artifact path, validates that an unpacked MetaMask Manifest V3 extension manifest exists, and creates an isolated profile directory.
+- `@agent-browser-wallet/wallet-browser` resolves a MetaMask extension directory from env/config or the pinned default artifact path, validates that an unpacked MetaMask Manifest V3 extension manifest exists, verifies that default artifact manifests report the configured/pinned version, resolves Chrome `__MSG_...__` localized names from `_locales/<default_locale>/messages.json`, requires resolved `name` or `short_name` to exactly identify MetaMask rather than merely containing the word, creates an isolated profile directory, and rejects profile paths that point at the project root or overlap the extension artifact.
 - Launch options are Chromium-only, use a persistent context user data directory, and include MetaMask extension flags.
 - The CLI `wallet-browser prepare` command exposes the same prepared launch plan in machine-readable JSON without launching Chromium.
 - Missing extension config fails closed before launch.

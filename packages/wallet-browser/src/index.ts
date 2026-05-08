@@ -1,6 +1,7 @@
 export {
   PINNED_METAMASK_VERSION,
   resolveWalletBrowserConfig,
+  type MetaMaskExtensionIdentity,
   type ResolveWalletBrowserConfigOptions,
   type WalletBrowserConfig,
   type WalletBrowserEnv
@@ -13,6 +14,25 @@ export {
   type PreparedChromiumLaunchOptions,
   type WalletBrowserLaunchResult
 } from './launcher.js';
+
+export {
+  discoverMetaMaskExtensionPage,
+  type DiscoverMetaMaskExtensionPageOptions,
+  type ExtensionPageLike
+} from './extension-pages.js';
+
+export {
+  captureFixtureExtensionSmokeScreenshots,
+  captureMetaMaskSmokeScreenshots,
+  resolveDefaultFixtureDappSmokeUrl,
+  writeSmokeArtifactManifest,
+  verifySmokeArtifactManifest,
+  writeSmokeInspectionGuide,
+  type MetaMaskSmokeOptions,
+  type MetaMaskSmokeResult,
+  type MetaMaskSmokeScreenshot,
+  type RunMetaMaskSmoke
+} from './metamask-smoke.js';
 
 export { runWalletBrowserCli, type WalletBrowserCliOptions } from './cli.js';
 

@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { isAbsolute, join, parse, relative, resolve, sep } from 'node:path';
 
 export const PINNED_METAMASK_VERSION = '13.29.0';
 
@@ -33,10 +33,17 @@ export interface ResolveWalletBrowserConfigOptions {
   preserveProfile?: boolean;
 }
 
+export interface MetaMaskExtensionIdentity {
+  name: string;
+  shortName?: string;
+  version?: string;
+}
+
 export interface WalletBrowserConfig {
   browserName: 'chromium';
   metamaskExtensionPath: string;
   metamaskExtensionVersion: string;
+  metamaskExtensionIdentity: MetaMaskExtensionIdentity;
   profileDir: string;
   profileName: string;
   preserveProfile: boolean;
@@ -54,13 +61,22 @@ export function resolveWalletBrowserConfig(options: ResolveWalletBrowserConfigOp
     env.METAMASK_EXTENSION_PATH ??
     env.METAMASK_EXTENSION_DIR ??
     defaultMetamaskExtensionPath(metamaskExtensionVersion);
+  const usesDefaultExtensionArtifact =
+    options.metamaskExtensionPath === undefined &&
+    options.metamaskExtensionDir === undefined &&
+    env.METAMASK_EXTENSION_PATH === undefined &&
+    env.METAMASK_EXTENSION_DIR === undefined;
 
   const metamaskExtensionPath = resolve(cwd, extensionPathValue);
   assertDirectory(metamaskExtensionPath, 'MetaMask extension path');
-  assertManifestExists(metamaskExtensionPath);
+  const metamaskExtensionIdentity = readMetaMaskManifestIdentity(metamaskExtensionPath);
+  if (usesDefaultExtensionArtifact) {
+    assertManifestVersionMatchesConfiguredVersion(metamaskExtensionIdentity, metamaskExtensionVersion, metamaskExtensionPath);
+  }
 
   const profileName = sanitizeProfileName(options.profileName ?? env.WALLET_PROFILE_NAME ?? DEFAULT_PROFILE_NAME);
   const profileDir = resolve(cwd, options.profileDir ?? env.WALLET_PROFILE_DIR ?? `.wallet-profiles/${profileName}`);
+  assertSafeProfileDir(profileDir, cwd, metamaskExtensionPath);
   mkdirSync(profileDir, { recursive: true });
   assertDirectory(profileDir, 'Wallet browser profile directory');
 
@@ -68,6 +84,7 @@ export function resolveWalletBrowserConfig(options: ResolveWalletBrowserConfigOp
     browserName: 'chromium',
     metamaskExtensionPath,
     metamaskExtensionVersion,
+    metamaskExtensionIdentity,
     profileDir,
     profileName,
     preserveProfile: options.preserveProfile ?? parseBoolean(env.PRESERVE_WALLET_PROFILE)
@@ -90,7 +107,35 @@ function assertDirectory(path: string, label: string): void {
   }
 }
 
-function assertManifestExists(extensionPath: string): void {
+function assertSafeProfileDir(profileDir: string, cwd: string, metamaskExtensionPath: string): void {
+  const root = parse(profileDir).root;
+  if (profileDir === root || profileDir === resolve(cwd)) {
+    throw new Error('Wallet browser profile directory is unsafe; use an isolated directory under .wallet-profiles or an explicit wallet profile root.');
+  }
+
+  if (isSamePathOrChild(profileDir, metamaskExtensionPath) || isSamePathOrChild(metamaskExtensionPath, profileDir)) {
+    throw new Error('Wallet browser profile directory must not overlap the MetaMask extension path.');
+  }
+}
+
+function isSamePathOrChild(candidatePath: string, parentPath: string): boolean {
+  const relation = relative(parentPath, candidatePath);
+  return relation === '' || (!relation.startsWith('..') && !isAbsolute(relation) && !relation.startsWith(sep));
+}
+
+function assertManifestVersionMatchesConfiguredVersion(
+  identity: MetaMaskExtensionIdentity,
+  configuredVersion: string,
+  extensionPath: string
+): void {
+  if (identity.version !== configuredVersion) {
+    throw new Error(
+      `MetaMask extension manifest version must match configured version for default artifact ${extensionPath}: expected ${configuredVersion}, found ${identity.version ?? 'missing'}.`
+    );
+  }
+}
+
+function readMetaMaskManifestIdentity(extensionPath: string): MetaMaskExtensionIdentity {
   const manifestPath = join(extensionPath, 'manifest.json');
   if (!existsSync(manifestPath)) {
     throw new Error(`MetaMask extension manifest is missing: ${manifestPath}`);
@@ -101,11 +146,57 @@ function assertManifestExists(extensionPath: string): void {
     throw new Error(`MetaMask extension manifest_version must be 3: ${manifestPath}`);
   }
 
-  const name = typeof manifest.name === 'string' ? manifest.name : '';
-  const shortName = typeof manifest.short_name === 'string' ? manifest.short_name : '';
-  if (!/metamask/i.test(`${name} ${shortName}`)) {
+  const rawName = typeof manifest.name === 'string' ? manifest.name : '';
+  const rawShortName = typeof manifest.short_name === 'string' ? manifest.short_name : '';
+  const localeMessages = readLocaleMessages(extensionPath, manifest);
+  const name = resolveManifestText(rawName, localeMessages).trim();
+  const shortName = resolveManifestText(rawShortName, localeMessages).trim();
+  if (!isMetaMaskManifestName(name) && !isMetaMaskManifestName(shortName)) {
     throw new Error(`MetaMask extension manifest must identify MetaMask: ${manifestPath}`);
   }
+
+  const identity: MetaMaskExtensionIdentity = { name };
+  if (shortName !== '') {
+    identity.shortName = shortName;
+  }
+  if (typeof manifest.version === 'string' && manifest.version.trim() !== '') {
+    identity.version = manifest.version;
+  }
+
+  return identity;
+}
+
+function isMetaMaskManifestName(value: string): boolean {
+  return value.trim().toLowerCase() === 'metamask';
+}
+
+function readLocaleMessages(extensionPath: string, manifest: Record<string, unknown>): Record<string, string> {
+  const defaultLocale = typeof manifest.default_locale === 'string' ? manifest.default_locale.trim() : '';
+  if (defaultLocale === '') {
+    return {};
+  }
+
+  const messagesPath = join(extensionPath, '_locales', defaultLocale, 'messages.json');
+  if (!existsSync(messagesPath)) {
+    return {};
+  }
+
+  const messages = readManifest(messagesPath);
+  const resolved: Record<string, string> = {};
+  for (const [key, value] of Object.entries(messages)) {
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      const message = (value as Record<string, unknown>).message;
+      if (typeof message === 'string') {
+        resolved[key] = message;
+      }
+    }
+  }
+
+  return resolved;
+}
+
+function resolveManifestText(value: string, localeMessages: Record<string, string>): string {
+  return value.replace(/__MSG_([A-Za-z0-9_@]+)__/g, (match, key: string) => localeMessages[key] ?? match);
 }
 
 function readManifest(manifestPath: string): Record<string, unknown> {
