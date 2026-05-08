@@ -40,6 +40,15 @@ export {
 } from './metamask-smoke.js';
 
 export {
+  WILDCAT_LENDER_ARTIFACT_DIR,
+  WILDCAT_LENDER_URL,
+  createWildcatLenderConnectionPlan,
+  type WildcatLenderConnectionPlan,
+  type WildcatLenderConnectionPlanOptions,
+  type WildcatLenderConnectionPlanStep
+} from './wildcat-lender.js';
+
+export {
   DEFAULT_METAMASK_PROMPT_SELECTORS,
   approveMetaMaskConnectionPrompt,
   assertMetaMaskConnectionPromptText,

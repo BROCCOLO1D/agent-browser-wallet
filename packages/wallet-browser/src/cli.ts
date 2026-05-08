@@ -5,6 +5,7 @@ import { createMetaMaskOnboardingPlan, resolveMetaMaskOnboardingConfig } from '.
 import { createSepoliaNetworkPlan, resolveSepoliaNetworkConfig } from './network.js';
 import { createProfileBootstrapImportDryRun } from './profile-bootstrap.js';
 import { verifyFixtureConnectionProofManifest } from './fixture-proof.js';
+import { createWildcatLenderConnectionPlan } from './wildcat-lender.js';
 import {
   captureFixtureExtensionSmokeScreenshots,
   captureMetaMaskSmokeScreenshots,
@@ -59,6 +60,7 @@ const USAGE = `Usage:
   wallet-browser smoke-fixture-extension
   wallet-browser verify-smoke-artifacts <artifact-dir>
   wallet-browser verify-fixture-proof <artifact-dir>
+  wallet-browser wildcat-lender-plan
   wallet-browser onboarding-plan
   wallet-browser profile-bootstrap-import --dry-run
   wallet-browser network-plan
@@ -204,6 +206,17 @@ export async function runWalletBrowserCli(options: WalletBrowserCliOptions = {})
       return 0;
     } catch (error) {
       stderr(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+  }
+
+  if (command === 'wildcat-lender-plan') {
+    try {
+      const plan = createWildcatLenderConnectionPlan({ cwd: options.cwd, env: options.env });
+      stdout(`${JSON.stringify(plan, null, 2)}\n`);
+      return 0;
+    } catch (error) {
+      stderr(`${redactPrepareError(error instanceof Error ? error.message : String(error), options.env ?? process.env)}\n`);
       return 1;
     }
   }
