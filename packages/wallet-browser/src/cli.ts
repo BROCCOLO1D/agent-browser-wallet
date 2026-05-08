@@ -3,6 +3,7 @@ import { prepareChromiumLaunchOptions } from './launcher.js';
 import { resolveWalletBrowserConfig, type WalletBrowserEnv } from './config.js';
 import { createMetaMaskOnboardingPlan, resolveMetaMaskOnboardingConfig } from './onboarding.js';
 import { createSepoliaNetworkPlan, resolveSepoliaNetworkConfig } from './network.js';
+import { createProfileBootstrapImportDryRun } from './profile-bootstrap.js';
 import {
   captureFixtureExtensionSmokeScreenshots,
   captureMetaMaskSmokeScreenshots,
@@ -57,6 +58,7 @@ const USAGE = `Usage:
   wallet-browser smoke-fixture-extension
   wallet-browser verify-smoke-artifacts <artifact-dir>
   wallet-browser onboarding-plan
+  wallet-browser profile-bootstrap-import --dry-run
   wallet-browser network-plan
 
 Print a sanitized Chromium persistent-context launch plan for the pinned MetaMask extension profile,
@@ -157,6 +159,21 @@ export async function runWalletBrowserCli(options: WalletBrowserCliOptions = {})
       return 0;
     } catch (error) {
       stderr(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+  }
+
+  if (command === 'profile-bootstrap-import') {
+    if (!argv.includes('--dry-run')) {
+      stderr('profile-bootstrap-import currently requires --dry-run; real browser import automation is intentionally not run by this command yet.\n');
+      return 1;
+    }
+    try {
+      const result = createProfileBootstrapImportDryRun({ cwd: options.cwd, env: options.env });
+      stdout(`${JSON.stringify(result, null, 2)}\n`);
+      return 0;
+    } catch (error) {
+      stderr(`${redactPrepareError(error instanceof Error ? error.message : String(error), options.env ?? process.env)}\n`);
       return 1;
     }
   }

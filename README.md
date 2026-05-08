@@ -21,6 +21,7 @@ This repo is now focused on a concrete path: **Playwright + persistent Chromium 
 - `wallet-browser smoke-metamask` launches real Chromium with the pinned MetaMask extension and captures local-only smoke screenshots.
 - `wallet-browser smoke-fixture-extension` launches the fixture dapp beside the extension in the same persistent context.
 - `wallet-browser verify-smoke-artifacts` checks local screenshot manifests against captured files.
+- `wallet-browser profile-bootstrap-import --dry-run` validates burner import/profile inputs and writes a sanitized local manifest without launching a browser or entering secrets.
 - The fixture dapp has stable selectors and mocked-provider tests for connect, signature, zero-value transaction, account/chain events, and guardrail rejection.
 - Wallet-control helper modules model connect/sign/send/network/account guardrails with redacted structured logs.
 - Sensitive artifacts are ignored by default: `.env`, `.wallet-extensions/`, `.wallet-profiles/`, `.wallet-artifacts/`, traces, reports, and local audit logs.
@@ -37,7 +38,7 @@ Using ignored local secrets and artifacts, we have proven:
 Still in progress:
 
 - completing the MetaMask connection approval for fixture dapp and Wildcat;
-- making the burner import/connect script robust enough to promote from `/tmp` debugging into the package CLI.
+- wiring the real browser import runner behind the new `profile-bootstrap-import` dry-run manifest path.
 
 ## Screenshots and evidence
 
@@ -102,6 +103,7 @@ Inspect sanitized plans:
 pnpm --filter @agent-browser-wallet/wallet-browser cli --help
 pnpm --filter @agent-browser-wallet/wallet-browser cli prepare
 pnpm --filter @agent-browser-wallet/wallet-browser cli onboarding-plan
+pnpm --filter @agent-browser-wallet/wallet-browser cli profile-bootstrap-import --dry-run
 pnpm --filter @agent-browser-wallet/wallet-browser cli network-plan
 ```
 

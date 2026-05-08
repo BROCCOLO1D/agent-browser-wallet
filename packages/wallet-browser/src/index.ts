@@ -93,6 +93,16 @@ export {
 } from './network.js';
 
 export {
+  createProfileBootstrapImportDryRun,
+  createProfileBootstrapImportManifest,
+  maskEthereumAddress,
+  type ProfileBootstrapImportDryRunResult,
+  type ProfileBootstrapImportEnv,
+  type ProfileBootstrapImportManifest,
+  type ResolveProfileBootstrapImportOptions
+} from './profile-bootstrap.js';
+
+export {
   approveSignature,
   approveTransaction,
   assertWalletState,
