@@ -5,7 +5,7 @@ import { createMetaMaskOnboardingPlan, resolveMetaMaskOnboardingConfig } from '.
 import { createSepoliaNetworkPlan, resolveSepoliaNetworkConfig } from './network.js';
 import { createProfileBootstrapImportDryRun } from './profile-bootstrap.js';
 import { verifyFixtureConnectionProofManifest } from './fixture-proof.js';
-import { createWildcatLenderConnectionPlan } from './wildcat-lender.js';
+import { createWildcatLenderConnectionPlan, verifyWildcatLenderArtifactManifest } from './wildcat-lender.js';
 import {
   captureFixtureExtensionSmokeScreenshots,
   captureMetaMaskSmokeScreenshots,
@@ -61,6 +61,7 @@ const USAGE = `Usage:
   wallet-browser verify-smoke-artifacts <artifact-dir>
   wallet-browser verify-fixture-proof <artifact-dir>
   wallet-browser wildcat-lender-plan
+  wallet-browser verify-wildcat-lender-artifacts <artifact-dir>
   wallet-browser onboarding-plan
   wallet-browser profile-bootstrap-import --dry-run
   wallet-browser network-plan
@@ -214,6 +215,23 @@ export async function runWalletBrowserCli(options: WalletBrowserCliOptions = {})
     try {
       const plan = createWildcatLenderConnectionPlan({ cwd: options.cwd, env: options.env });
       stdout(`${JSON.stringify(plan, null, 2)}\n`);
+      return 0;
+    } catch (error) {
+      stderr(`${redactPrepareError(error instanceof Error ? error.message : String(error), options.env ?? process.env)}\n`);
+      return 1;
+    }
+  }
+
+  if (command === 'verify-wildcat-lender-artifacts') {
+    const artifactDir = argv[1];
+    if (!artifactDir) {
+      stderr(`Missing artifact directory for verify-wildcat-lender-artifacts.\n\n${USAGE}`);
+      return 1;
+    }
+    try {
+      const result = verifyWildcatLenderArtifactManifest(artifactDir);
+      const publicResult = { ...result, artifactDir: '[redacted:artifact-dir]', manifestPath: '[redacted:manifest-path]' };
+      stdout(`${JSON.stringify(publicResult, null, 2)}\n`);
       return 0;
     } catch (error) {
       stderr(`${redactPrepareError(error instanceof Error ? error.message : String(error), options.env ?? process.env)}\n`);

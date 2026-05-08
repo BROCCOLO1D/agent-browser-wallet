@@ -1,8 +1,13 @@
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { basename, join } from 'node:path';
+
 import { DEFAULT_SEPOLIA_CHAIN_ID, chainIdToHex, resolveSepoliaNetworkConfig, type SepoliaNetworkEnv } from './network.js';
 import { maskEthereumAddress } from './profile-bootstrap.js';
 
 export const WILDCAT_LENDER_URL = 'https://testnet.wildcat.finance/lender';
 export const WILDCAT_LENDER_ARTIFACT_DIR = '.wallet-artifacts/wildcat-lender/<run-id>';
+export const WILDCAT_LENDER_MANIFEST = 'WILDCAT-LENDER-MANIFEST.json';
 
 export interface WildcatLenderConnectionPlanOptions {
   cwd?: string;
@@ -38,6 +43,56 @@ export interface WildcatLenderConnectionPlan {
   safetyNotes: readonly string[];
 }
 
+export interface WildcatLenderConnectedEvidence {
+  connectionState: 'connected';
+  maskedAccount: string;
+  chainId: number;
+  origin: typeof WILDCAT_LENDER_URL;
+}
+
+export interface WildcatLenderScreenshot {
+  label: 'wildcat-connected';
+  file: string;
+  sizeBytes: number;
+  sha256: string;
+}
+
+export type WildcatLenderFailureBlocker =
+  | 'connect-modal-selection'
+  | 'metamask-notification-discovery'
+  | 'metamask-connect-approval'
+  | 'wallet-state-guardrail'
+  | 'wildcat-provider-state'
+  | 'live-site-unavailable'
+  | 'unknown';
+
+export interface WildcatLenderFailureEvidence {
+  blocker: WildcatLenderFailureBlocker;
+  stage: WildcatLenderConnectionPlanStep['action'];
+  safeMessage: string;
+}
+
+interface WildcatLenderArtifactManifest {
+  artifactType: 'wildcat-lender-wallet-connection-proof';
+  target: 'wildcat-lender';
+  status: 'connected' | 'failed';
+  evidence?: WildcatLenderConnectedEvidence;
+  failure?: WildcatLenderFailureEvidence;
+  screenshots?: WildcatLenderScreenshot[];
+  diagnostics?: string[];
+}
+
+export interface WildcatLenderArtifactVerificationResult {
+  status: 'verified-connected' | 'verified-failed';
+  target: 'wildcat-lender';
+  artifactDir: string;
+  manifestPath: string;
+  evidence?: WildcatLenderConnectedEvidence;
+  failure?: WildcatLenderFailureEvidence;
+  screenshots: WildcatLenderScreenshot[];
+  diagnostics: string[];
+}
+
 export function createWildcatLenderConnectionPlan(
   options: WildcatLenderConnectionPlanOptions = {}
 ): WildcatLenderConnectionPlan {
@@ -64,6 +119,58 @@ export function createWildcatLenderConnectionPlan(
       'Artifacts belong under .wallet-artifacts/wildcat-lender/<run-id>/ and must remain local-only until manually inspected and scanned.'
     ]
   };
+}
+
+export function verifyWildcatLenderArtifactManifest(artifactDir: string): WildcatLenderArtifactVerificationResult {
+  const manifestPath = join(artifactDir, WILDCAT_LENDER_MANIFEST);
+  const manifestText = readFileSync(manifestPath, 'utf8');
+  if (manifestText.includes(artifactDir)) {
+    throw new Error('Wildcat lender manifest must not contain the full artifact directory path.');
+  }
+  if (containsFullAddress(manifestText)) {
+    throw new Error('Wildcat lender manifest must not contain full wallet addresses.');
+  }
+
+  const manifest = JSON.parse(manifestText) as WildcatLenderArtifactManifest;
+  if (manifest.artifactType !== 'wildcat-lender-wallet-connection-proof') {
+    throw new Error('Wildcat lender manifest has an unexpected artifact type.');
+  }
+  if (manifest.target !== 'wildcat-lender') {
+    throw new Error('Wildcat lender manifest has an unexpected target.');
+  }
+  const diagnostics = verifySafeStringList(manifest.diagnostics ?? [], 'diagnostic');
+
+  if (manifest.status === 'connected') {
+    const evidence = verifyConnectedEvidence(manifest.evidence);
+    const screenshots = verifyConnectedScreenshots(artifactDir, manifest.screenshots ?? []);
+    return {
+      status: 'verified-connected',
+      target: 'wildcat-lender',
+      artifactDir,
+      manifestPath,
+      evidence,
+      screenshots,
+      diagnostics
+    };
+  }
+
+  if (manifest.status === 'failed') {
+    const failure = verifyFailureEvidence(manifest.failure);
+    if (Array.isArray(manifest.screenshots) && manifest.screenshots.length > 0) {
+      throw new Error('Failed Wildcat lender manifests must not claim connected screenshots.');
+    }
+    return {
+      status: 'verified-failed',
+      target: 'wildcat-lender',
+      artifactDir,
+      manifestPath,
+      failure,
+      screenshots: [],
+      diagnostics
+    };
+  }
+
+  throw new Error('Wildcat lender manifest status must be connected or failed.');
 }
 
 function createWildcatPlanSteps(): readonly WildcatLenderConnectionPlanStep[] {
@@ -112,4 +219,108 @@ function createWildcatPlanSteps(): readonly WildcatLenderConnectionPlanStep[] {
       guardrail: 'Screenshot and manifest must be redacted, local-only, and stored under ignored .wallet-artifacts/wildcat-lender/.'
     }
   ];
+}
+
+function verifyConnectedEvidence(evidence: WildcatLenderConnectedEvidence | undefined): WildcatLenderConnectedEvidence {
+  if (!evidence || evidence.connectionState !== 'connected') {
+    throw new Error('Connected Wildcat lender proof must include connected evidence.');
+  }
+  if (evidence.chainId !== DEFAULT_SEPOLIA_CHAIN_ID) {
+    throw new Error(`Connected Wildcat lender proof must be captured on Sepolia chain ${DEFAULT_SEPOLIA_CHAIN_ID}.`);
+  }
+  if (evidence.origin !== WILDCAT_LENDER_URL) {
+    throw new Error(`Connected Wildcat lender proof must use the Wildcat lender origin ${WILDCAT_LENDER_URL}.`);
+  }
+  if (!isMaskedAccount(evidence.maskedAccount)) {
+    throw new Error('Connected Wildcat lender proof must use a masked account and must not contain a full wallet address.');
+  }
+  return evidence;
+}
+
+function verifyFailureEvidence(failure: WildcatLenderFailureEvidence | undefined): WildcatLenderFailureEvidence {
+  if (!failure) {
+    throw new Error('Failed Wildcat lender manifest must include failure evidence.');
+  }
+  const blockers: readonly WildcatLenderFailureBlocker[] = [
+    'connect-modal-selection',
+    'metamask-notification-discovery',
+    'metamask-connect-approval',
+    'wallet-state-guardrail',
+    'wildcat-provider-state',
+    'live-site-unavailable',
+    'unknown'
+  ];
+  if (!blockers.includes(failure.blocker)) {
+    throw new Error(`Wildcat lender failure blocker is not recognized: ${String(failure.blocker)}`);
+  }
+  const stages = createWildcatPlanSteps().map((step) => step.action);
+  if (!stages.includes(failure.stage)) {
+    throw new Error(`Wildcat lender failure stage is not recognized: ${String(failure.stage)}`);
+  }
+  if (!isSafeMessage(failure.safeMessage)) {
+    throw new Error('Wildcat lender failure safeMessage must be redacted and must not contain paths, URLs with tokens, or full addresses.');
+  }
+  return failure;
+}
+
+function verifyConnectedScreenshots(artifactDir: string, screenshots: WildcatLenderScreenshot[]): WildcatLenderScreenshot[] {
+  if (!Array.isArray(screenshots) || screenshots.length === 0) {
+    throw new Error('Connected Wildcat lender proof must include at least one screenshot.');
+  }
+  const verified = screenshots.map((screenshot) => verifyScreenshot(artifactDir, screenshot));
+  if (!verified.some((screenshot) => screenshot.label === 'wildcat-connected')) {
+    throw new Error('Connected Wildcat lender proof must include a wildcat-connected screenshot.');
+  }
+  return verified;
+}
+
+function verifyScreenshot(artifactDir: string, screenshot: WildcatLenderScreenshot): WildcatLenderScreenshot {
+  if (screenshot.label !== 'wildcat-connected') {
+    throw new Error(`Wildcat lender screenshot has an unexpected label: ${String(screenshot.label)}`);
+  }
+  if (!isSafeArtifactFileName(screenshot.file)) {
+    throw new Error(`Wildcat lender screenshot file must be a safe basename: ${String(screenshot.file)}`);
+  }
+  const screenshotPath = join(artifactDir, screenshot.file);
+  if (!existsSync(screenshotPath)) {
+    throw new Error(`Wildcat lender screenshot is missing: ${screenshot.file}`);
+  }
+  const bytes = readFileSync(screenshotPath);
+  const sizeBytes = statSync(screenshotPath).size;
+  const sha256 = createHash('sha256').update(bytes).digest('hex');
+  if (screenshot.sizeBytes !== sizeBytes) {
+    throw new Error(`Wildcat lender screenshot size mismatch for ${screenshot.file}.`);
+  }
+  if (screenshot.sha256 !== sha256) {
+    throw new Error(`Wildcat lender screenshot hash mismatch for ${screenshot.file}.`);
+  }
+  return { ...screenshot, sizeBytes, sha256 };
+}
+
+function verifySafeStringList(values: string[], label: string): string[] {
+  if (!Array.isArray(values)) {
+    throw new Error(`Wildcat lender ${label} entries must be an array.`);
+  }
+  for (const value of values) {
+    if (!isSafeMessage(value)) {
+      throw new Error(`Wildcat lender ${label} entries must be redacted and path-safe.`);
+    }
+  }
+  return values;
+}
+
+function isSafeMessage(value: string): boolean {
+  return typeof value === 'string' && value.length > 0 && !containsFullAddress(value) && !/\/[\w.-]+\//.test(value) && !/https?:\/\/[^\s]+\?.+/.test(value);
+}
+
+function isMaskedAccount(value: string): boolean {
+  return typeof value === 'string' && /^0x[0-9a-fA-F]{4}(?:…|\.\.\.)[0-9a-fA-F]{4,5}$/.test(value) && !containsFullAddress(value);
+}
+
+function containsFullAddress(value: string): boolean {
+  return /0x[0-9a-fA-F]{40}/.test(value);
+}
+
+function isSafeArtifactFileName(fileName: string): boolean {
+  return typeof fileName === 'string' && fileName.length > 0 && fileName === basename(fileName) && !fileName.includes('..');
 }

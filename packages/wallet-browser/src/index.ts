@@ -41,11 +41,18 @@ export {
 
 export {
   WILDCAT_LENDER_ARTIFACT_DIR,
+  WILDCAT_LENDER_MANIFEST,
   WILDCAT_LENDER_URL,
   createWildcatLenderConnectionPlan,
+  verifyWildcatLenderArtifactManifest,
+  type WildcatLenderArtifactVerificationResult,
+  type WildcatLenderConnectedEvidence,
   type WildcatLenderConnectionPlan,
   type WildcatLenderConnectionPlanOptions,
-  type WildcatLenderConnectionPlanStep
+  type WildcatLenderConnectionPlanStep,
+  type WildcatLenderFailureBlocker,
+  type WildcatLenderFailureEvidence,
+  type WildcatLenderScreenshot
 } from './wildcat-lender.js';
 
 export {
