@@ -113,11 +113,47 @@ describe('resolveWalletBrowserConfig', () => {
     );
   });
 
+  it('resolves localized Chrome extension names used by real MetaMask bundles', () => {
+    const cwd = tempRoot();
+    const extensionPath = join(cwd, 'localized-metamask');
+    mkdirSync(join(extensionPath, '_locales', 'en'), { recursive: true });
+    writeFileSync(
+      join(extensionPath, 'manifest.json'),
+      JSON.stringify({ manifest_version: 3, name: '__MSG_appName__', short_name: '__MSG_appName__', default_locale: 'en', version: '13.29.0' })
+    );
+    writeFileSync(
+      join(extensionPath, '_locales', 'en', 'messages.json'),
+      JSON.stringify({ appName: { message: 'MetaMask' } })
+    );
+
+    const config = resolveWalletBrowserConfig({ cwd, env: { METAMASK_EXTENSION_PATH: extensionPath } });
+
+    expect(config.metamaskExtensionIdentity).toEqual({ name: 'MetaMask', shortName: 'MetaMask', version: '13.29.0' });
+  });
+
   it('rejects unpacked extension directories whose manifest does not identify MetaMask', () => {
     const cwd = tempRoot();
     const extensionPath = join(cwd, 'not-metamask');
     mkdirSync(extensionPath, { recursive: true });
     writeFileSync(join(extensionPath, 'manifest.json'), JSON.stringify({ manifest_version: 3, name: 'Some Other Wallet' }));
+
+    expect(() => resolveWalletBrowserConfig({ cwd, env: { METAMASK_EXTENSION_PATH: extensionPath } })).toThrow(
+      /MetaMask extension manifest must identify MetaMask/
+    );
+  });
+
+  it('rejects localized extension manifests when locale messages do not identify MetaMask', () => {
+    const cwd = tempRoot();
+    const extensionPath = join(cwd, 'localized-other-wallet');
+    mkdirSync(join(extensionPath, '_locales', 'en'), { recursive: true });
+    writeFileSync(
+      join(extensionPath, 'manifest.json'),
+      JSON.stringify({ manifest_version: 3, name: '__MSG_appName__', default_locale: 'en' })
+    );
+    writeFileSync(
+      join(extensionPath, '_locales', 'en', 'messages.json'),
+      JSON.stringify({ appName: { message: 'Some Other Wallet' } })
+    );
 
     expect(() => resolveWalletBrowserConfig({ cwd, env: { METAMASK_EXTENSION_PATH: extensionPath } })).toThrow(
       /MetaMask extension manifest must identify MetaMask/

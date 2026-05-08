@@ -109,8 +109,11 @@ function readMetaMaskManifestIdentity(extensionPath: string): MetaMaskExtensionI
     throw new Error(`MetaMask extension manifest_version must be 3: ${manifestPath}`);
   }
 
-  const name = typeof manifest.name === 'string' ? manifest.name : '';
-  const shortName = typeof manifest.short_name === 'string' ? manifest.short_name : '';
+  const rawName = typeof manifest.name === 'string' ? manifest.name : '';
+  const rawShortName = typeof manifest.short_name === 'string' ? manifest.short_name : '';
+  const localeMessages = readLocaleMessages(extensionPath, manifest);
+  const name = resolveManifestText(rawName, localeMessages);
+  const shortName = resolveManifestText(rawShortName, localeMessages);
   if (!/metamask/i.test(`${name} ${shortName}`)) {
     throw new Error(`MetaMask extension manifest must identify MetaMask: ${manifestPath}`);
   }
@@ -124,6 +127,35 @@ function readMetaMaskManifestIdentity(extensionPath: string): MetaMaskExtensionI
   }
 
   return identity;
+}
+
+function readLocaleMessages(extensionPath: string, manifest: Record<string, unknown>): Record<string, string> {
+  const defaultLocale = typeof manifest.default_locale === 'string' ? manifest.default_locale.trim() : '';
+  if (defaultLocale === '') {
+    return {};
+  }
+
+  const messagesPath = join(extensionPath, '_locales', defaultLocale, 'messages.json');
+  if (!existsSync(messagesPath)) {
+    return {};
+  }
+
+  const messages = readManifest(messagesPath);
+  const resolved: Record<string, string> = {};
+  for (const [key, value] of Object.entries(messages)) {
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      const message = (value as Record<string, unknown>).message;
+      if (typeof message === 'string') {
+        resolved[key] = message;
+      }
+    }
+  }
+
+  return resolved;
+}
+
+function resolveManifestText(value: string, localeMessages: Record<string, string>): string {
+  return value.replace(/__MSG_([A-Za-z0-9_@]+)__/g, (match, key: string) => localeMessages[key] ?? match);
 }
 
 function readManifest(manifestPath: string): Record<string, unknown> {
