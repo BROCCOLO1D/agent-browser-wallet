@@ -1,25 +1,69 @@
 # agent-browser-wallet
 
-Private build project for making LLM-agent browser environments dapp-capable by provisioning a real browser wallet extension profile.
-
-## Purpose
-
-LLM agents often drive synthetic or isolated browser clients that do not include the user extensions a real crypto user depends on. That makes dapp testing awkward: the agent can click the web app, but it cannot naturally connect MetaMask, approve wallet prompts, sign messages, switch chains, or submit testnet transactions.
+Make LLM-agent browser environments dapp-capable by provisioning a real browser wallet extension profile.
 
 This repo is focused on one concrete path: **Playwright/Chromium + pinned MetaMask extension + isolated burner Sepolia profile + reusable wallet automation helpers**.
 
-## Phase 1 scope
+## Fixture dapp in action
 
-Phase 1 defines the implementation contract before code is added:
+The committed screenshots below are captured with Playwright from the local fixture dapp and a deterministic mocked EIP-1193 provider. They do not use real wallet secrets, private keys, RPC tokens, or browser profiles.
 
-- supported MVP runtime matrix;
-- explicitly deferred runtimes and wallets;
-- pinning/versioning strategy for Playwright, Chromium, MetaMask, Node, package manager, and CI assumptions;
-- non-secret environment variable placeholders;
-- expected future repo layout;
-- acceptance criteria, risks, and Phase 2 handoff checklist.
+<p align="center">
+  <img src="docs/assets/readme/fixture-no-provider.png" width="760" alt="Fixture dapp showing the disabled no-provider state before a wallet is injected">
+</p>
 
-See [Phase 1 runtime matrix](docs/phase-1-runtime-matrix.md), [Phase 1 completion status](docs/phase-1-completion.md), [security and artifact handling](docs/security-and-artifacts.md), [Phase 2 handoff checklist](docs/phase-2-handoff.md), [Phase 2 usage and acceptance](docs/phase-2-usage.md), [Phase 3 MetaMask onboarding usage](docs/phase-3-usage.md), [Phase 4 Sepolia network provisioning usage](docs/phase-4-usage.md), [Phase 5 fixture dapp usage](docs/phase-5-usage.md), [Phase 6 wallet-control helper usage](docs/phase-6-usage.md), [Phase 7 audit and safety guardrails](docs/phase-7-usage.md), and [high-level goals](docs/high-level-goals.md).
+<p align="center">
+  <img src="docs/assets/readme/fixture-connected-actions.png" width="760" alt="Fixture dapp after connecting a mocked Sepolia wallet, signing a message, and submitting a zero-value transaction">
+</p>
+
+<p align="center">
+  <img src="docs/assets/readme/fixture-guardrail-rejected.png" width="760" alt="Fixture dapp rejecting a transaction attempt on an unsupported chain">
+</p>
+
+Regenerate these README assets with:
+
+```bash
+pnpm docs:assets
+```
+
+## What works now
+
+- Resolve and validate an unpacked MetaMask extension path for persistent Chromium launch.
+- Build launch plans for Playwright-managed Chromium with isolated wallet profiles.
+- Validate/redact MetaMask onboarding inputs for a Sepolia burner wallet.
+- Assert Sepolia/local-devnet chain and configured burner account state.
+- Run a tiny fixture dapp with stable `data-testid` selectors.
+- Exercise connect/sign/send flows with mocked-provider Playwright tests.
+- Use wallet-control helpers for `connectWallet`, `approveSignature`, `approveTransaction`, `switchNetwork`, `assertWalletState`, and `resetProfile`.
+- Enforce audit/safety guardrails for origin, chain, account, target, and transaction value.
+
+## Try it
+
+```bash
+pnpm install --frozen-lockfile
+pnpm test
+pnpm typecheck
+pnpm build
+pnpm fixture:test:mocked-provider
+```
+
+Serve the fixture locally:
+
+```bash
+pnpm fixture:build
+pnpm fixture:serve
+```
+
+Then open `http://127.0.0.1:5173`.
+
+Inspect sanitized wallet-browser plans:
+
+```bash
+pnpm --filter @agent-browser-wallet/wallet-browser cli --help
+pnpm --filter @agent-browser-wallet/wallet-browser cli prepare
+pnpm --filter @agent-browser-wallet/wallet-browser cli onboarding-plan
+pnpm --filter @agent-browser-wallet/wallet-browser cli network-plan
+```
 
 ## Near-term MVP
 
@@ -37,3 +81,7 @@ See [Phase 1 runtime matrix](docs/phase-1-runtime-matrix.md), [Phase 1 completio
 - Never commit private keys, seed phrases, RPC tokens, wallet passwords, extension profile directories, traces, screenshots, or test artifacts containing secrets.
 - Fail closed on unexpected chain, account, value, contract, dapp origin, or wallet prompt state.
 - Treat the MetaMask profile as sensitive even when it only contains testnet funds.
+
+## Docs
+
+See [Phase 1 runtime matrix](docs/phase-1-runtime-matrix.md), [Phase 1 completion status](docs/phase-1-completion.md), [security and artifact handling](docs/security-and-artifacts.md), [Phase 2 handoff checklist](docs/phase-2-handoff.md), [Phase 2 usage and acceptance](docs/phase-2-usage.md), [Phase 3 MetaMask onboarding usage](docs/phase-3-usage.md), [Phase 4 Sepolia network provisioning usage](docs/phase-4-usage.md), [Phase 5 fixture dapp usage](docs/phase-5-usage.md), [Phase 6 wallet-control helper usage](docs/phase-6-usage.md), [Phase 7 audit and safety guardrails](docs/phase-7-usage.md), and [high-level goals](docs/high-level-goals.md).
