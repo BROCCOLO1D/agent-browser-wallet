@@ -17,8 +17,13 @@ export {
 
 export {
   discoverMetaMaskExtensionPage,
+  getMetaMaskExtensionPagePath,
+  waitForMetaMaskExtensionPage,
   type DiscoverMetaMaskExtensionPageOptions,
-  type ExtensionPageLike
+  type ExtensionBrowserContextLike,
+  type ExtensionPageLike,
+  type MetaMaskExtensionPagePath,
+  type WaitForMetaMaskExtensionPageOptions
 } from './extension-pages.js';
 
 export {
