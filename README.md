@@ -1,16 +1,47 @@
 # agent-browser-wallet
 
-Make LLM-agent browser environments dapp-capable by provisioning a real browser wallet extension profile.
+Real browser-wallet automation for AI agents and dapp test harnesses.
 
-This repo is focused on one concrete path: **Playwright/Chromium + pinned MetaMask extension + isolated burner Sepolia profile + reusable wallet automation helpers**.
+This repo is now focused on a concrete path: **Playwright + persistent Chromium + pinned MetaMask + isolated burner/testnet profiles**. The goal is to let an agent drive a dapp in the same kind of browser a real user has: one with a wallet extension installed, wallet prompts, chain switching, account assertions, screenshots, and safety guardrails.
 
-## Fixture dapp in action
+## Current target
 
-The committed screenshots below are captured with Playwright from the local fixture dapp and a deterministic mocked EIP-1193 provider. They do not use real wallet secrets, private keys, RPC tokens, or browser profiles.
+- **Runner:** Playwright
+- **Browser:** Chromium persistent contexts, because extension support requires a real profile
+- **Wallet:** pinned MetaMask extension artifact, downloaded locally and ignored by Git
+- **First dapp:** local fixture dapp for deterministic connect/sign/send tests
+- **Live target:** `https://testnet.wildcat.finance/lender` on Sepolia
+- **Wallet policy:** burner/testnet only; no production wallets or mainnet funds
 
-<p align="center">
-  <img src="docs/assets/readme/fixture-no-provider.png" width="760" alt="Fixture dapp showing the disabled no-provider state before a wallet is injected">
-</p>
+## What works today
+
+### CI-safe / committed
+
+- `wallet-browser prepare` validates MetaMask extension/profile launch config and prints a sanitized persistent-context plan.
+- `wallet-browser smoke-metamask` launches real Chromium with the pinned MetaMask extension and captures local-only smoke screenshots.
+- `wallet-browser smoke-fixture-extension` launches the fixture dapp beside the extension in the same persistent context.
+- `wallet-browser verify-smoke-artifacts` checks local screenshot manifests against captured files.
+- The fixture dapp has stable selectors and mocked-provider tests for connect, signature, zero-value transaction, account/chain events, and guardrail rejection.
+- Wallet-control helper modules model connect/sign/send/network/account guardrails with redacted structured logs.
+- Sensitive artifacts are ignored by default: `.env`, `.wallet-extensions/`, `.wallet-profiles/`, `.wallet-artifacts/`, traces, reports, and local audit logs.
+
+### Local-only / dogfooded
+
+Using ignored local secrets and artifacts, we have proven:
+
+- real Chromium can load real MetaMask;
+- the Sepolia burner can be imported into MetaMask as `Imported Account 1`;
+- the active MetaMask account can show the masked burner `0x81611...34B61` without exposing the full private key, seed phrase, password, or full address;
+- Wildcat testnet loads and opens its wallet chooser after clicking **Connect Wallet**.
+
+Still in progress:
+
+- completing the MetaMask connection approval for fixture dapp and Wildcat;
+- making the burner import/connect script robust enough to promote from `/tmp` debugging into the package CLI.
+
+## Screenshots and evidence
+
+Committed README images are public-safe mocked-provider or masked public Sepolia evidence.
 
 <p align="center">
   <img src="docs/assets/readme/fixture-connected-actions.png" width="760" alt="Fixture dapp after connecting a mocked Sepolia wallet, signing a message, and submitting a zero-value transaction">
@@ -20,55 +51,52 @@ The committed screenshots below are captured with Playwright from the local fixt
   <img src="docs/assets/readme/fixture-guardrail-rejected.png" width="760" alt="Fixture dapp rejecting a transaction attempt on an unsupported chain">
 </p>
 
-The public-safe mocked-provider screenshots regenerate with:
+<p align="center">
+  <img src="docs/assets/readme/fixture-real-sepolia-burner.png" width="760" alt="Fixture dapp connected to the masked real Sepolia burner wallet with a public balance check">
+</p>
+
+Generate public-safe mocked screenshots:
 
 ```bash
 pnpm docs:assets
 ```
 
-This repo also includes a screenshot captured from the ignored local Sepolia burner configuration. The generator reads `SEPOLIA_WALLET_ADDRESS` from `.env`, checks its Sepolia balance over a public RPC endpoint, masks the address in the page, and captures the fixture flow without committing wallet secrets.
-
-<p align="center">
-  <img src="docs/assets/readme/fixture-real-sepolia-burner.png" width="760" alt="Fixture dapp connected to the masked real Sepolia burner wallet with a public balance check">
-</p>
-
-Regenerate the local real-burner screenshot with:
+Generate the local masked Sepolia burner screenshot:
 
 ```bash
 pnpm docs:assets:real-sepolia
 ```
 
-## What works now
-
-- Resolve and validate an unpacked MetaMask extension path for persistent Chromium launch.
-- Build launch plans for Playwright-managed Chromium with isolated wallet profiles.
-- Validate/redact MetaMask onboarding inputs for a Sepolia burner wallet.
-- Assert Sepolia/local-devnet chain and configured burner account state.
-- Run a tiny fixture dapp with stable `data-testid` selectors.
-- Exercise connect/sign/send flows with mocked-provider Playwright tests.
-- Use wallet-control helpers for `connectWallet`, `approveSignature`, `approveTransaction`, `switchNetwork`, `assertWalletState`, and `resetProfile`.
-- Enforce audit/safety guardrails for origin, chain, account, target, and transaction value.
+Real MetaMask/Wildcat screenshots are treated as local-sensitive artifacts until inspected. They live under `.wallet-artifacts/` and should not be committed unless explicitly scrubbed.
 
 ## Try it
+
+Install and run the baseline checks:
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm test
 pnpm typecheck
 pnpm build
-pnpm fixture:test:mocked-provider
+pnpm security:scan
 ```
 
-Serve the fixture locally:
+Fetch the pinned MetaMask extension locally:
 
 ```bash
-pnpm fixture:build
-pnpm fixture:serve
+pnpm wallet:metamask:fetch --dry-run
+pnpm wallet:metamask:fetch
 ```
 
-Then open `http://127.0.0.1:5173`.
+Run headed browser smoke tests in WSL/Linux with Xvfb:
 
-Inspect sanitized wallet-browser plans:
+```bash
+xvfb-run -a pnpm wallet:smoke:metamask
+xvfb-run -a pnpm wallet:smoke:fixture-extension
+pnpm wallet:smoke:verify .wallet-artifacts/metamask-smoke/<run-id>
+```
+
+Inspect sanitized plans:
 
 ```bash
 pnpm --filter @agent-browser-wallet/wallet-browser cli --help
@@ -77,23 +105,73 @@ pnpm --filter @agent-browser-wallet/wallet-browser cli onboarding-plan
 pnpm --filter @agent-browser-wallet/wallet-browser cli network-plan
 ```
 
-## Near-term MVP
+Serve the fixture dapp:
 
-1. Launch Playwright-managed Chromium with a pinned MetaMask extension in a persistent, isolated profile.
-2. Import a supplied burner Sepolia wallet from local secrets.
-3. Assert the active address and chain before any wallet action.
-4. Validate connect/sign/send flows against a tiny fixture dapp.
-5. Reuse the same helper surface against `wildcat-app-v2` on Sepolia after the fixture flow is reliable.
+```bash
+pnpm fixture:build
+pnpm fixture:serve
+```
+
+Then open `http://127.0.0.1:5173`.
+
+## Local secret setup
+
+Copy `.env.example` to `.env` and use only testnet/burner values:
+
+```bash
+cp .env.example .env
+chmod 600 .env
+```
+
+Important variables:
+
+- `SEPOLIA_WALLET_ADDRESS`
+- `SEPOLIA_WALLET_PRIVATE_KEY`
+- `SEPOLIA_RPC_URL` optional/custom RPC
+- `SEPOLIA_CHAIN_ID=11155111`
+- `METAMASK_PASSWORD`
+- `WALLET_PROFILE_DIR`
+- `METAMASK_EXTENSION_DIR`
+
+Never commit `.env`, wallet profiles, extension bundles, traces, Playwright reports, screenshot artifacts, or local audit logs.
+
+## Suggested 5-step plan
+
+1. **Stabilize MetaMask prompt discovery.** Build reusable discovery for `home.html`, `notification.html`, and page replacement cases after dapp wallet requests. This unblocks fixture and Wildcat approvals.
+2. **Promote burner onboarding/import to package code.** Move the proven local `/tmp` burner import flow into a tested CLI/helper with redacted errors and no screenshot capture while secrets are visible.
+3. **Complete fixture dapp real-wallet connection.** Use the imported burner profile to connect the local fixture dapp, assert `eth_accounts` and chain, then capture inspected local screenshots.
+4. **Complete Wildcat lender connection.** Drive `https://testnet.wildcat.finance/lender`, dismiss consent, choose MetaMask, approve connection, verify the masked `0x8161…4b61` account, and capture a safe screenshot.
+5. **Package an agent-facing command.** Add a single opt-in command such as `wallet-browser run --profile sepolia-burner --target wildcat-lender` that prepares the profile, enforces origin/chain/account guardrails, collects artifacts, and exits with a redacted status object.
+
+## Overnight stretch plan
+
+If running unattended overnight, aim for one autonomous loop with strict safety limits:
+
+1. **No transaction approvals.** Only connect-wallet and read-only account/chain checks; reject sign/send prompts.
+2. **Retry prompt discovery variants.** Try MetaMask popup, notification page, extension home, and new-page events; record which selector/path worked.
+3. **Capture artifacts every attempt.** Save screenshots, sanitized page text, active URLs, and a redacted JSON manifest under `.wallet-artifacts/overnight-wildcat/<timestamp>/`.
+4. **Stop on first verified connection.** Verification requires Wildcat UI or provider state showing the expected masked burner account on Sepolia.
+5. **Summarize failure modes.** If connection still fails, produce a ranked list of blockers: connect-modal selection, MetaMask notification discovery, chain mismatch, page/context closure, or Wildcat-side provider state.
+
+Stretch goal: after a verified Wildcat connection screenshot, generalize the successful prompt path into a reusable `connectWallet()` driver and add mock tests for the discovered state machine before touching any transaction/signature flows.
 
 ## Safety posture
 
-- Use only burner/local/testnet wallets.
-- Keep wallet material in local `.env` files that are ignored by Git; start from [.env.example](.env.example).
-- Follow [security and artifact handling](docs/security-and-artifacts.md) for local profiles, traces, screenshots, reports, and CI uploads.
-- Never commit private keys, seed phrases, RPC tokens, wallet passwords, extension profile directories, traces, screenshots, or test artifacts containing secrets.
-- Fail closed on unexpected chain, account, value, contract, dapp origin, or wallet prompt state.
-- Treat the MetaMask profile as sensitive even when it only contains testnet funds.
+- Burner/testnet wallets only.
+- Fail closed on unexpected chain, account, origin, prompt type, target, or value.
+- Default transaction value cap is zero wei.
+- Treat wallet profiles as secrets even if encrypted.
+- Treat screenshots/traces/reports as sensitive until inspected.
+- Redact private keys, seed phrases, wallet passwords, RPC tokens, full `.env` contents, and full wallet addresses from logs and public docs.
 
 ## Docs
 
-See [Phase 1 runtime matrix](docs/phase-1-runtime-matrix.md), [Phase 1 completion status](docs/phase-1-completion.md), [security and artifact handling](docs/security-and-artifacts.md), [Phase 2 handoff checklist](docs/phase-2-handoff.md), [Phase 2 usage and acceptance](docs/phase-2-usage.md), [Phase 3 MetaMask onboarding usage](docs/phase-3-usage.md), [Phase 4 Sepolia network provisioning usage](docs/phase-4-usage.md), [Phase 5 fixture dapp usage](docs/phase-5-usage.md), [Phase 6 wallet-control helper usage](docs/phase-6-usage.md), [Phase 7 audit and safety guardrails](docs/phase-7-usage.md), and [high-level goals](docs/high-level-goals.md).
+- [Phase 1 runtime matrix](docs/phase-1-runtime-matrix.md)
+- [Phase 2 usage and acceptance](docs/phase-2-usage.md)
+- [Phase 3 MetaMask onboarding usage](docs/phase-3-usage.md)
+- [Phase 4 Sepolia network provisioning usage](docs/phase-4-usage.md)
+- [Phase 5 fixture dapp usage](docs/phase-5-usage.md)
+- [Phase 6 wallet-control helper usage](docs/phase-6-usage.md)
+- [Phase 7 audit and safety guardrails](docs/phase-7-usage.md)
+- [Security and artifact handling](docs/security-and-artifacts.md)
+- [High-level goals](docs/high-level-goals.md)
