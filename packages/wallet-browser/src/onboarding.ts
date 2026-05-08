@@ -1,6 +1,7 @@
 import type { BrowserContext, Page } from 'playwright';
 
 import type { WalletBrowserEnv } from './config.js';
+import { discoverMetaMaskExtensionPage, isMetaMaskExtensionPageUrl as isKnownMetaMaskExtensionPageUrl } from './extension-pages.js';
 
 export type MetaMaskOnboardingState = 'needs-import' | 'locked' | 'unlocked' | 'unknown';
 export type MetaMaskOnboardingStatus = 'pending' | 'verified';
@@ -219,35 +220,24 @@ export async function verifyMetaMaskActiveAddress(_page: Page, _expectedAddress:
 }
 
 export function isMetaMaskExtensionPageUrl(url: string, extensionId?: string): boolean {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return false;
-  }
-
-  if (parsed.protocol !== 'chrome-extension:') {
-    return false;
-  }
-
-  if (extensionId && parsed.hostname !== extensionId) {
-    return false;
-  }
-
-  return parsed.pathname === '/home.html' || parsed.pathname === '/notification.html';
+  return isKnownMetaMaskExtensionPageUrl(url, { extensionId });
 }
 
 export function findMetaMaskExtensionPage(options: MetaMaskExtensionPageDiscoveryOptions): Page {
-  const pages = options.context.pages().filter((page) => isMetaMaskExtensionPageUrl(page.url(), options.extensionId));
-  if (pages.length === 0) {
-    throw new Error('Unknown MetaMask extension UI state: no MetaMask extension page is open in the provided BrowserContext.');
-  }
+  try {
+    return discoverMetaMaskExtensionPage(options.context.pages(), { extensionId: options.extensionId });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.startsWith('No MetaMask extension page found')) {
+      throw new Error('Unknown MetaMask extension UI state: no MetaMask extension page is open in the provided BrowserContext.');
+    }
 
-  if (pages.length > 1) {
-    throw new Error('Unknown MetaMask extension UI state: multiple MetaMask extension pages are open; pass an explicit Page to avoid ambiguity.');
-  }
+    if (message.startsWith('Multiple MetaMask extension page candidates found')) {
+      throw new Error('Unknown MetaMask extension UI state: multiple MetaMask extension pages are open; pass an explicit Page to avoid ambiguity.');
+    }
 
-  return pages[0];
+    throw error;
+  }
 }
 
 export async function createMetaMaskPageDriver(options: MetaMaskPageDriverOptions): Promise<MetaMaskOnboardingDriver> {

@@ -15,6 +15,12 @@ export {
   type WalletBrowserLaunchResult
 } from './launcher.js';
 
+export {
+  discoverMetaMaskExtensionPage,
+  type DiscoverMetaMaskExtensionPageOptions,
+  type ExtensionPageLike
+} from './extension-pages.js';
+
 export { runWalletBrowserCli, type WalletBrowserCliOptions } from './cli.js';
 
 export {
