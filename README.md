@@ -1,39 +1,52 @@
 # brocolli-test
 
-Infrastructure-grade Web3 QA packages for Playwright suites that need to exercise dapps through a real browser-wallet path.
+brocolli-test is a two-package workspace for wallet-backed dapp QA.
 
-`brocolli-test` is code-first test infrastructure, not a collection of target scripts. Downstream apps keep ownership of routes, selectors, test data, and assertions. These packages provide the reusable wallet runtime, Playwright fixtures, policy guardrails, CLI verification, and public-safe artifact contracts.
+```text
+@broccolo1d/playwright
+  └─ imports @broccolo1d/wallet-browser
+       └─ uses Playwright Chromium persistent contexts
+            └─ loads an unpacked MetaMask extension from ignored local storage
+```
 
-![Safe usage screenshot: install, import, CLI, and verified Playwright output](docs/assets/readme/wallet-qa-package-output.png)
+
+## TLDR
+
+Lets you do stuff like:
+```ts
+import { test } from '@broccolo1d/playwright';
+
+test('wallet connects and approves transactions', async ({ page, wallet, walletArtifacts }) => {
+  await page.goto('http://127.0.0.1:5173');
+  
+  // Playwright interacts with dapp UI while wallet handles MetaMask prompts automatically
+  const result = await wallet.connect({
+    requestConnection: async () => page.getByRole('button', { name: /connect/i }).click()
+  });
+  
+  console.log('Connected as:', result.activeAccount);
+  // Connected as: 0x1234567890123456789012345678901234567890
+});
+```
+
 
 ## Packages
 
 | Package | Version | Purpose |
 | --- | ---: | --- |
-| [`@broccolo1d/wallet-browser`](packages/wallet-browser/README.md) | `0.2.1` | Lower-level Chromium/MetaMask launch helpers, prompt guardrails, network/account assertions, smoke CLI, and artifact verification. |
-| [`@broccolo1d/playwright`](packages/playwright/README.md) | `0.2.1` | Playwright fixtures for app-owned wallet QA specs, proof manifests, screenshots, and fail-closed wallet policy wiring. |
+| [`@broccolo1d/wallet-browser`](packages/wallet-browser/README.md) | `0.2.1` | Core browser automation for MetaMask integration with Chromium context management and wallet state verification. |
+| [`@broccolo1d/playwright`](packages/playwright/README.md) | `0.2.1` | Playwright test fixtures and utilities for wallet-integrated dapp testing with structured proof artifacts. |
 
-The default posture is conservative:
 
-- real wallet launch is opt-in;
-- burner/testnet wallets only;
-- prompts fail closed unless explicit drivers and policy are configured;
-- signatures and transactions are not approved implicitly;
-- local profiles, screenshots, traces, manifests, extension bundles, and env files are sensitive runtime state;
-- public output must not contain private keys, seed phrases, RPC credentials, local paths, or full wallet addresses.
+## Runtime model
 
-## What is implemented
+1. A test or CLI command resolves configuration.
+2. Chromium launches with a persistent profile and an unpacked extension only when explicitly requested.
+3. Dapp code triggers wallet actions through app-owned UI drivers.
+4. Wallet prompt drivers validate expected prompt text and policy before clicking.
+5. Network drivers assert account and chain state.
+6. Artifacts are written under ignored local directories and verified before sharing.
 
-- ESM TypeScript packages published as `@broccolo1d/wallet-browser@0.2.1` and `@broccolo1d/playwright@0.2.1`.
-- Persistent Chromium launch with an unpacked MetaMask extension.
-- Redacted CLI commands for launch planning, onboarding planning, network planning, smoke capture, and artifact verification.
-- Connect-oriented wallet control helpers with account, chain, origin, and prompt guardrails.
-- Playwright fixtures for downstream dapp QA specs.
-- Public-oriented proof manifests with attachment basename, sha256, size, masked account, safe origin, and redacted failure text.
-- Verification helpers that reject full addresses, absolute local paths, and mismatched artifact hashes.
-- Repository sensitive-content scan for tracked files and git history.
-
-Not claimed: production-wallet automation, mainnet automation, broad wallet comparison, blind signing, or unrestricted transaction approval.
 
 ## Install in a dapp test repo
 
@@ -164,47 +177,7 @@ try {
 ```
 
 Prefer package APIs from tests. Use the CLI for local setup, smoke capture, and verification.
-
-## Repository development
-
-Requirements:
-
-- Node.js `>=22 <23`
-- pnpm `11.0.8`
-- Chromium host dependencies required by Playwright for real browser flows
-
-```bash
-pnpm install --frozen-lockfile
-pnpm test
-pnpm typecheck
-pnpm build
-pnpm security:scan
-```
-
-Repository layout:
-
-```text
-packages/wallet-browser/           # Core wallet runtime, policy, CLI, and artifact helpers
-packages/playwright/                # Playwright fixtures for downstream dapp QA suites
-scripts/fetch-metamask-extension.py # Local MetaMask extension fetch utility
-scripts/sensitive-scan.py           # Repository sensitive-content scan
-docs/architecture.md                # Package boundaries and runtime model
-docs/security-and-artifacts.md      # Secret, profile, trace, screenshot, and manifest policy
-docs/product-roadmap.md             # Implemented state, roadmap, and non-goals
-docs/assets/readme/                 # Public-safe README assets
-```
-
-Ignored runtime paths:
-
-```text
-.env
-.wallet-extensions/
-.wallet-profiles/
-.wallet-artifacts/
-playwright-report/
-test-results/
-traces/
-```
+ 
 
 ## CLI examples
 
@@ -235,15 +208,6 @@ pnpm --filter @broccolo1d/playwright pack --dry-run
 Tarballs include package README files, the root license, package metadata, and built `dist/` output.
 
 ## Safety model
-
-- Burner/testnet wallets only.
-- Real wallet usage is opt-in.
-- Unknown prompts fail closed.
-- Signatures and transactions require explicit policy and prompt-driver support.
-- Transaction value caps default to zero wei.
-- Account, chain ID, origin, prompt type, target, and value are policy inputs.
-- Public output must redact private keys, seed phrases, wallet passwords, RPC credentials, local paths, and full wallet addresses.
-- Artifacts remain local unless reviewed, scrubbed, and verified.
 
 See [docs/security-and-artifacts.md](docs/security-and-artifacts.md) for the full handling policy.
 
