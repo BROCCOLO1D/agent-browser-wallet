@@ -351,8 +351,6 @@ describe('wallet-control helpers', () => {
       expectedAccount: ADDRESS,
       expectedChainId: DEFAULT_SEPOLIA_CHAIN_ID,
       network: makeNetworkDriver(),
-      expectedChainId: DEFAULT_SEPOLIA_CHAIN_ID,
-      network: makeNetworkDriver(),
       message: 'hello',
       signatureKind: 'personal_sign',
       logger: (event) => events.push(event),
