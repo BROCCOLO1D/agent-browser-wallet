@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  classifyMetaMaskPromptText,
   createMetaMaskPromptDriver,
   type ExtensionBrowserContextLike,
   type ExtensionPageLike,
@@ -230,5 +231,62 @@ describe('MetaMask prompt driver', () => {
     })).rejects.toThrow(/expected signature message/i);
 
     expect(page.clicks).toEqual([]);
+  });
+
+  it('keeps signature approval fail-closed when prompt text contains conflicting markers', async () => {
+    const page = new FakePromptPage(
+      'chrome-extension://metamaskid/notification.html#personal-sign',
+      'Connect with MetaMask. Signature request https://fixture.example wants you to sign this message: Sign in to Fixture'
+    );
+    page.visibleSelectors.add('[data-testid="page-container-footer-confirm"]');
+
+    const driver = createMetaMaskPromptDriver({ context: makeContext(page) });
+
+    await expect(driver.approveSignature?.({
+      origin: 'https://fixture.example',
+      expectedAccount: ADDRESS,
+      expectedChainIdHex: '0xaa36a7',
+      message: 'Sign in to Fixture',
+      signatureKind: 'personal_sign'
+    })).rejects.toThrow(/Unexpected MetaMask prompt marker/i);
+
+    expect(page.clicks).toEqual([]);
+  });
+
+  it('classifies simple prompt text by kind', () => {
+    const cases = [
+      {
+        text: 'Connect with MetaMask https://fixture.example wants to connect to your account.',
+        kind: 'connect'
+      },
+      {
+        text: 'Allow this site to switch the network to Sepolia',
+        kind: 'switch-chain'
+      },
+      {
+        text: 'Allow this site to add a network named Sepolia',
+        kind: 'add-chain'
+      },
+      {
+        text: 'Signature request https://fixture.example wants you to sign this message: Sign in',
+        kind: 'sign'
+      },
+      {
+        text: 'Confirm transaction Send 0.01 ETH to another account from https://fixture.example',
+        kind: 'transaction'
+      },
+      {
+        text: 'Spending cap request: give permission to access your tokens',
+        kind: 'token-approval'
+      },
+      {
+        text: 'Welcome to your wallet dashboard',
+        kind: 'unknown'
+      }
+    ] as const;
+
+    for (const { text, kind } of cases) {
+      expect(classifyMetaMaskPromptText(text).kind).toBe(kind);
+    }
   });
 });

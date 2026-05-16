@@ -44,11 +44,14 @@ export {
   DEFAULT_METAMASK_PROMPT_SELECTORS,
   approveMetaMaskConnectionPrompt,
   assertMetaMaskConnectionPromptText,
+  classifyMetaMaskPromptText,
   createMetaMaskPromptDriver,
+  type MetaMaskPromptClassification,
   type MetaMaskPromptDriverOptions,
   type MetaMaskPromptLocatorLike,
   type MetaMaskPromptPageLike,
-  type MetaMaskPromptSelectors
+  type MetaMaskPromptSelectors,
+  type WalletPromptKind
 } from './metamask-prompts.js';
 
 export {

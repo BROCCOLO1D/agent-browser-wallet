@@ -26,6 +26,13 @@ export interface MetaMaskPromptDriverOptions {
   selectors?: Partial<MetaMaskPromptSelectors>;
 }
 
+export type WalletPromptKind = 'connect' | 'switch-chain' | 'add-chain' | 'sign' | 'transaction' | 'token-approval' | 'unknown';
+
+export interface MetaMaskPromptClassification {
+  kind: WalletPromptKind;
+  matchedMarker?: string;
+}
+
 export const DEFAULT_METAMASK_PROMPT_SELECTORS: MetaMaskPromptSelectors = {
   pageText: 'body',
   nextButtonCandidates: [
@@ -62,6 +69,33 @@ const NON_CONNECTION_PROMPT_MARKERS = [
   'spending cap',
   'approve token',
   'edit permission'
+] as const;
+
+const SWITCH_CHAIN_PROMPT_MARKERS = [
+  'switch network',
+  'switch to',
+  'allow this site to switch the network',
+  'network switch'
+] as const;
+
+const ADD_CHAIN_PROMPT_MARKERS = [
+  'add network',
+  'add a network',
+  'allow this site to add a network',
+  'network will be added'
+] as const;
+
+const TRANSACTION_PROMPT_MARKERS = [
+  'confirm transaction',
+  'send transaction',
+  'transaction request'
+] as const;
+
+const TOKEN_APPROVAL_PROMPT_MARKERS = [
+  'spending cap',
+  'approve token',
+  'edit permission',
+  'give permission to access your tokens'
 ] as const;
 
 export function createMetaMaskPromptDriver(options: MetaMaskPromptDriverOptions): WalletPromptDriver {
@@ -109,12 +143,14 @@ export async function approveMetaMaskConnectionPrompt(
 
 export function assertMetaMaskConnectionPromptText(promptText: string, expectedOrigin?: string): void {
   const normalizedText = promptText.toLowerCase();
-  const unexpectedMarker = NON_CONNECTION_PROMPT_MARKERS.find((marker) => normalizedText.includes(marker));
-  if (unexpectedMarker) {
-    throw new Error(`Unexpected MetaMask prompt marker "${unexpectedMarker}" while expecting a connection prompt; refusing to click.`);
-  }
-
-  if (!CONNECTION_PROMPT_MARKERS.some((marker) => normalizedText.includes(marker))) {
+  const classification = classifyMetaMaskPromptText(promptText);
+  if (classification.kind !== 'connect') {
+    const unexpectedMarker = classification.matchedMarker && NON_CONNECTION_PROMPT_MARKERS.includes(classification.matchedMarker as typeof NON_CONNECTION_PROMPT_MARKERS[number])
+      ? classification.matchedMarker
+      : undefined;
+    if (unexpectedMarker) {
+      throw new Error(`Unexpected MetaMask prompt marker "${unexpectedMarker}" while expecting a connection prompt; refusing to click.`);
+    }
     throw new Error('MetaMask notification page did not look like a connection prompt; refusing to click.');
   }
 
@@ -145,6 +181,27 @@ const NON_SIGNATURE_PROMPT_MARKERS = [
   'edit permission'
 ] as const;
 
+export function classifyMetaMaskPromptText(promptText: string): MetaMaskPromptClassification {
+  const normalizedText = promptText.toLowerCase();
+  const orderedChecks: readonly [WalletPromptKind, readonly string[]][] = [
+    ['token-approval', TOKEN_APPROVAL_PROMPT_MARKERS],
+    ['transaction', TRANSACTION_PROMPT_MARKERS],
+    ['sign', SIGNATURE_PROMPT_MARKERS],
+    ['add-chain', ADD_CHAIN_PROMPT_MARKERS],
+    ['switch-chain', SWITCH_CHAIN_PROMPT_MARKERS],
+    ['connect', CONNECTION_PROMPT_MARKERS]
+  ];
+
+  for (const [kind, markers] of orderedChecks) {
+    const matchedMarker = markers.find((marker) => normalizedText.includes(marker));
+    if (matchedMarker) {
+      return { kind, matchedMarker };
+    }
+  }
+
+  return { kind: 'unknown' };
+}
+
 export async function approveMetaMaskSignaturePrompt(
   page: MetaMaskPromptPageLike,
   input: WalletSignaturePromptInput,
@@ -171,7 +228,8 @@ export function assertMetaMaskSignaturePromptText(promptText: string, input: Wal
   if (unexpectedMarker) {
     throw new Error(`Unexpected MetaMask prompt marker "${unexpectedMarker}" while expecting a signature prompt; refusing to click.`);
   }
-  if (!SIGNATURE_PROMPT_MARKERS.some((marker) => normalizedText.includes(marker))) {
+  const classification = classifyMetaMaskPromptText(promptText);
+  if (classification.kind !== 'sign') {
     throw new Error('MetaMask notification page did not look like a signature prompt; refusing to click.');
   }
 
