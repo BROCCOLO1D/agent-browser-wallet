@@ -7,7 +7,7 @@ This lower-level package owns Chromium/MetaMask launch configuration, prompt gua
 ## Install
 
 ```bash
-pnpm add -D @broccolo1d/wallet-browser@0.2.6 playwright
+pnpm add -D @broccolo1d/wallet-browser@0.2.9 playwright
 ```
 
 ESM-only. Node.js `>=22 <23`.

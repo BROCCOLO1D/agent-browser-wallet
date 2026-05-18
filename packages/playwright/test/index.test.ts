@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 import packageJson from '../package.json';
@@ -7,6 +8,12 @@ import type { DeterministicInjectedWalletPage } from '../src/index.js';
 describe('@broccolo1d/playwright exports', () => {
   it('declares a registry-safe wallet-browser dependency for plain npm publish', () => {
     expect(packageJson.dependencies['@broccolo1d/wallet-browser']).toBe('^0.2.8');
+  });
+
+  it('keeps the published dist provenance version aligned with package.json', async () => {
+    const distIndex = await readFile(new URL('../dist/index.js', import.meta.url), 'utf8');
+
+    expect(distIndex).toContain(`const PLAYWRIGHT_PACKAGE_VERSION = '${packageJson.version}';`);
   });
 
   it('exports an extended Playwright test and config helper', () => {
